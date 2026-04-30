@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>תמלול IVRIT.AI</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #f0f2f5;
+    }
+    .card {
+      background: white;
+      padding: 2rem 3rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      width: 480px;
+      text-align: center;
+    }
+    h1 { color: #333; margin-bottom: 1.5rem; }
+    input[type="file"] {
+      display: block;
+      margin: 0 auto 1rem;
+      font-size: 1rem;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 0.75rem 2rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      width: 100%;
+    }
+    button:disabled { background: #93c5fd; cursor: not-allowed; }
+    #status { margin-top: 1rem; color: #666; font-size: 0.9rem; }
+    #result {
+      margin-top: 1.5rem;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: right;
+      min-height: 60px;
+      font-size: 1.1rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>תמלול עברית</h1>
+    <input type="file" id="audioFile" accept="audio/*">
+    <button id="btn" onclick="transcribe()">תמלל</button>
+    <div id="status"></div>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    async function transcribe() {
+      const file = document.getElementById('audioFile').files[0];
+      if (!file) { alert('בחר קובץ אודיו'); return; }
+
+      const btn = document.getElementById('btn');
+      const status = document.getElementById('status');
+      const result = document.getElementById('result');
+
+      btn.disabled = true;
+      status.textContent = 'מתמלל...';
+      result.style.display = 'none';
+
+      const form = new FormData();
+      form.append('audio', file);
+
+      try {
+        const res = await fetch('/transcribe', { method: 'POST', body: form });
+        const data = await res.json();
+        if (data.text) {
+          result.textContent = data.text;
+          result.style.display = 'block';
+          status.textContent = '';
+        } else {
+          status.textContent = 'שגיאה: ' + JSON.stringify(data.error);
+        }
+      } catch (e) {
+        status.textContent = 'שגיאת רשת: ' + e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

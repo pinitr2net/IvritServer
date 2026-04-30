@@ -1,0 +1,79 @@
+require('dotenv').config();
+const express = require('express');
+const multer = require('multer');
+const axios = require('axios');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
+
+const upload = multer({ storage: multer.memoryStorage() });
+
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(UPLOADS_DIR));
+
+const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
+const ENDPOINT_ID = process.env.ENDPOINT_ID;
+
+app.post('/transcribe', upload.single('audio'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No audio file provided' });
+  }
+
+  const ext = path.extname(req.file.originalname) || '.mp3';
+  const filename = crypto.randomUUID() + ext;
+  const filepath = path.join(UPLOADS_DIR, filename);
+
+  try {
+    fs.writeFileSync(filepath, req.file.buffer);
+
+    const audioUrl = `${BASE_URL}/uploads/${filename}`;
+    console.log('Audio URL:', audioUrl);
+
+    const runpodRes = await axios.post(
+      `https://api.runpod.ai/v2/${ENDPOINT_ID}/runsync`,
+      {
+        input: {
+          transcribe_args: {
+            url: audioUrl,
+            language: 'he',
+            verbose: false,
+          },
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${RUNPOD_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 120000,
+      }
+    );
+
+    console.log('RunPod response:', JSON.stringify(runpodRes.data, null, 2));
+
+    const output = runpodRes.data.output;
+    const text = typeof output === 'string'
+      ? output
+      : output?.text ?? output?.transcription ?? JSON.stringify(output);
+
+    res.json({ text });
+  } catch (err) {
+    console.error('Error:', err.response?.data || err.message);
+    const status = err.response?.status || 500;
+    const message = err.response?.data || err.message;
+    res.status(status).json({ error: message });
+  } finally {
+    fs.unlink(filepath, () => {});
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Ivrit server running on port ${PORT}`);
+});
