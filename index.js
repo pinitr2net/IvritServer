@@ -33,8 +33,8 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
   try {
     fs.writeFileSync(filepath, req.file.buffer);
 
-    const audioUrl = `${BASE_URL}/uploads/${filename}`;
-    console.log('Audio URL:', audioUrl);
+    const audioBase64 = req.file.buffer.toString('base64');
+    console.log('Sending audio as base64, size:', audioBase64.length);
 
     const runpodRes = await axios.post(
       `https://api.runpod.ai/v2/${ENDPOINT_ID}/runsync`,
@@ -42,7 +42,7 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
         input: {
           model: 'ivrit-ai/whisper-large-v3-turbo-ct2',
           transcribe_args: {
-            url: audioUrl,
+            blob: audioBase64,
             language: 'he',
             verbose: false,
           },
