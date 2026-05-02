@@ -56,15 +56,29 @@
     #status { margin-top: 1rem; color: #666; font-size: 0.9rem; }
     .result-block {
       margin-top: 1.5rem;
-      background: #f8fafc;
       border: 1px solid #e2e8f0;
       border-radius: 8px;
+      overflow: hidden;
+      display: none;
+    }
+    .result-header {
+      background: #f1f5f9;
+      padding: 0.75rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .result-header h3 { margin: 0; color: #555; font-size: 0.9rem; }
+    .result-header .arrow { font-size: 0.75rem; color: #888; }
+    .result-body {
+      background: #f8fafc;
       padding: 1rem;
       text-align: right;
       display: none;
     }
-    .result-block h3 { margin: 0 0 0.5rem; color: #555; font-size: 0.9rem; }
-    .result-block pre {
+    .result-body pre {
       margin: 0;
       font-size: 1rem;
       line-height: 1.6;
@@ -82,18 +96,28 @@
     <div id="status"></div>
 
     <div class="result-block" id="textBlock">
-      <h3>טקסט</h3>
-      <pre id="textResult"></pre>
-      <div class="downloads">
-        <button class="btn-download" onclick="download('text')">הורד TXT</button>
+      <div class="result-header" onclick="toggle('textBody', 'textArrow')">
+        <h3>טקסט</h3>
+        <span class="arrow" id="textArrow">▼</span>
+      </div>
+      <div class="result-body" id="textBody">
+        <pre id="textResult"></pre>
+        <div class="downloads">
+          <button class="btn-download" onclick="download('text')">הורד TXT</button>
+        </div>
       </div>
     </div>
 
     <div class="result-block" id="srtBlock">
-      <h3>כתוביות SRT</h3>
-      <pre id="srtResult"></pre>
-      <div class="downloads">
-        <button class="btn-download" onclick="download('srt')">הורד SRT</button>
+      <div class="result-header" onclick="toggle('srtBody', 'srtArrow')">
+        <h3>כתוביות SRT</h3>
+        <span class="arrow" id="srtArrow">▼</span>
+      </div>
+      <div class="result-body" id="srtBody">
+        <pre id="srtResult"></pre>
+        <div class="downloads">
+          <button class="btn-download" onclick="download('srt')">הורד SRT</button>
+        </div>
       </div>
     </div>
   </div>
@@ -136,6 +160,14 @@
       } finally {
         btn.disabled = false;
       }
+    }
+
+    function toggle(bodyId, arrowId) {
+      const body = document.getElementById(bodyId);
+      const arrow = document.getElementById(arrowId);
+      const open = body.style.display === 'block';
+      body.style.display = open ? 'none' : 'block';
+      arrow.textContent = open ? '▼' : '▲';
     }
 
     function download(type) {
