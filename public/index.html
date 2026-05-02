@@ -9,17 +9,20 @@
       font-family: Arial, sans-serif;
       display: flex;
       justify-content: center;
-      align-items: center;
+      align-items: flex-start;
       min-height: 100vh;
       margin: 0;
+      padding: 2rem 1rem;
       background: #f0f2f5;
+      box-sizing: border-box;
     }
     .card {
       background: white;
       padding: 2rem 3rem;
       border-radius: 12px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-      width: 480px;
+      width: 100%;
+      max-width: 600px;
       text-align: center;
     }
     h1 { color: #333; margin-bottom: 1.5rem; }
@@ -28,7 +31,7 @@
       margin: 0 auto 1rem;
       font-size: 1rem;
     }
-    button {
+    .btn-primary {
       background: #2563eb;
       color: white;
       border: none;
@@ -38,44 +41,77 @@
       cursor: pointer;
       width: 100%;
     }
-    button:disabled { background: #93c5fd; cursor: not-allowed; }
+    .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+    .btn-download {
+      background: #16a34a;
+      color: white;
+      border: none;
+      padding: 0.5rem 1.2rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      margin-top: 0.5rem;
+      margin-right: 0.5rem;
+    }
     #status { margin-top: 1rem; color: #666; font-size: 0.9rem; }
-    #result {
+    .result-block {
       margin-top: 1.5rem;
       background: #f8fafc;
       border: 1px solid #e2e8f0;
       border-radius: 8px;
       padding: 1rem;
       text-align: right;
-      min-height: 60px;
-      font-size: 1.1rem;
-      line-height: 1.6;
-      white-space: pre-wrap;
       display: none;
     }
+    .result-block h3 { margin: 0 0 0.5rem; color: #555; font-size: 0.9rem; }
+    .result-block pre {
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      font-family: Arial, sans-serif;
+    }
+    .downloads { margin-top: 0.75rem; text-align: left; }
   </style>
 </head>
 <body>
   <div class="card">
     <h1>תמלול עברית</h1>
     <input type="file" id="audioFile" accept="audio/*">
-    <button id="btn" onclick="transcribe()">תמלל</button>
+    <button class="btn-primary" id="btn" onclick="transcribe()">תמלל</button>
     <div id="status"></div>
-    <div id="result"></div>
+
+    <div class="result-block" id="textBlock">
+      <h3>טקסט</h3>
+      <pre id="textResult"></pre>
+      <div class="downloads">
+        <button class="btn-download" onclick="download('text')">הורד TXT</button>
+      </div>
+    </div>
+
+    <div class="result-block" id="srtBlock">
+      <h3>כתוביות SRT</h3>
+      <pre id="srtResult"></pre>
+      <div class="downloads">
+        <button class="btn-download" onclick="download('srt')">הורד SRT</button>
+      </div>
+    </div>
   </div>
 
   <script>
+    let lastData = {};
+
     async function transcribe() {
       const file = document.getElementById('audioFile').files[0];
       if (!file) { alert('בחר קובץ אודיו'); return; }
 
       const btn = document.getElementById('btn');
       const status = document.getElementById('status');
-      const result = document.getElementById('result');
+      document.getElementById('textBlock').style.display = 'none';
+      document.getElementById('srtBlock').style.display = 'none';
 
       btn.disabled = true;
       status.textContent = 'מתמלל...';
-      result.style.display = 'none';
 
       const form = new FormData();
       form.append('audio', file);
@@ -84,8 +120,13 @@
         const res = await fetch('/transcribe', { method: 'POST', body: form });
         const data = await res.json();
         if (data.text) {
-          result.textContent = data.text;
-          result.style.display = 'block';
+          lastData = data;
+          document.getElementById('textResult').textContent = data.text;
+          document.getElementById('textBlock').style.display = 'block';
+          if (data.srt) {
+            document.getElementById('srtResult').textContent = data.srt;
+            document.getElementById('srtBlock').style.display = 'block';
+          }
           status.textContent = '';
         } else {
           status.textContent = 'שגיאה: ' + JSON.stringify(data.error);
@@ -95,6 +136,16 @@
       } finally {
         btn.disabled = false;
       }
+    }
+
+    function download(type) {
+      const content = type === 'srt' ? lastData.srt : lastData.text;
+      const ext = type === 'srt' ? 'srt' : 'txt';
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `transcription.${ext}`;
+      a.click();
     }
   </script>
 </body>

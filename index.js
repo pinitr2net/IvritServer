@@ -76,7 +76,18 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
       ? segments.map(s => s.text).join('')
       : JSON.stringify(parsed);
 
-    res.json({ text });
+    const srt = segments.map((s, i) => {
+      const fmt = sec => {
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        const s2 = Math.floor(sec % 60);
+        const ms = Math.round((sec % 1) * 1000);
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s2).padStart(2,'0')},${String(ms).padStart(3,'0')}`;
+      };
+      return `${i + 1}\n${fmt(s.start)} --> ${fmt(s.end)}\n${s.text.trim()}\n`;
+    }).join('\n');
+
+    res.json({ text, srt });
   } catch (err) {
     const errData = err.response?.data;
     const errMsg = err.message;
