@@ -40,6 +40,7 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
       `https://api.runpod.ai/v2/${ENDPOINT_ID}/runsync`,
       {
         input: {
+          model: 'ivrit-ai/whisper-large-v3-turbo-ct2',
           transcribe_args: {
             url: audioUrl,
             language: 'he',
@@ -56,19 +57,31 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
       }
     );
 
-    console.log('RunPod response:', JSON.stringify(runpodRes.data, null, 2));
+    const fullResponse = runpodRes.data;
+    console.log('RunPod response:', JSON.stringify(fullResponse, null, 2));
+    fs.writeFileSync('runpod-response.json', JSON.stringify(fullResponse, null, 2));
 
-    const output = runpodRes.data.output;
+    if (fullResponse.status === 'FAILED') {
+      return res.status(500).json({ error: fullResponse.error || 'RunPod job failed' });
+    }
+
+    const output = fullResponse.output;
+    if (output === undefined || output === null) {
+      return res.status(500).json({ error: 'No output from RunPod', raw: fullResponse });
+    }
+
     const text = typeof output === 'string'
       ? output
       : output?.text ?? output?.transcription ?? JSON.stringify(output);
 
     res.json({ text });
   } catch (err) {
-    console.error('Error:', err.response?.data || err.message);
+    const errData = err.response?.data;
+    const errMsg = err.message;
+    console.error('Error:', errData || errMsg);
+    fs.writeFileSync('runpod-response.json', JSON.stringify({ errData, errMsg }, null, 2));
     const status = err.response?.status || 500;
-    const message = err.response?.data || err.message;
-    res.status(status).json({ error: message });
+    res.status(status).json({ error: errData || errMsg });
   } finally {
     fs.unlink(filepath, () => {});
   }
