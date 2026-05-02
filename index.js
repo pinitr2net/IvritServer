@@ -70,9 +70,11 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
       return res.status(500).json({ error: 'No output from RunPod', raw: fullResponse });
     }
 
-    const text = typeof output === 'string'
-      ? output
-      : output?.text ?? output?.transcription ?? JSON.stringify(output);
+    const parsed = typeof output === 'string' ? JSON.parse(output) : output;
+    const segments = parsed?.[0]?.result?.flat() ?? [];
+    const text = segments.length > 0
+      ? segments.map(s => s.text).join('')
+      : JSON.stringify(parsed);
 
     res.json({ text });
   } catch (err) {
