@@ -8,36 +8,26 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(UPLOADS_DIR));
-
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
 const ENDPOINT_ID = process.env.ENDPOINT_ID;
 
-app.post('/transcribe', upload.single('audio'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No audio file provided' });
-  }
+app.use(express.static(path.join(__dirname, 'public')));
 
-  const ext = path.extname(req.file.originalname) || '.mp3';
-  const filename = crypto.randomUUID() + ext;
-  const filepath = path.join(UPLOADS_DIR, filename);
+app.post('/transcribe', upload.single('audio'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No audio file provided' });
+
+  const audioBase64 = req.file.buffer.toString('base64');
+  console.log('Sending audio as base64, size:', audioBase64.length);
 
   try {
-    fs.writeFileSync(filepath, req.file.buffer);
-
-    const audioBase64 = req.file.buffer.toString('base64');
-    console.log('Sending audio as base64, size:', audioBase64.length);
-
     const runpodRes = await axios.post(
-      `https://api.runpod.ai/v2/${ENDPOINT_ID}/runsync`,
+      `https://api.runpod.ai/v2/${ENDPOINT_ID}/run`,
       {
         input: {
           model: 'ivrit-ai/whisper-large-v3-turbo-ct2',
@@ -53,23 +43,44 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
           Authorization: `Bearer ${RUNPOD_API_KEY}`,
           'Content-Type': 'application/json',
         },
-        timeout: 120000,
+        timeout: 30000,
       }
     );
 
-    const fullResponse = runpodRes.data;
-    console.log('RunPod response:', JSON.stringify(fullResponse, null, 2));
-    fs.writeFileSync('runpod-response.json', JSON.stringify(fullResponse, null, 2));
+    const jobId = runpodRes.data?.id;
+    if (!jobId) return res.status(500).json({ error: 'No job ID from RunPod', raw: runpodRes.data });
 
-    if (fullResponse.status === 'FAILED') {
-      return res.status(500).json({ error: fullResponse.error || 'RunPod job failed' });
+    res.json({ jobId });
+  } catch (err) {
+    console.error('Error submitting job:', err.response?.data || err.message);
+    res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+  }
+});
+
+app.get('/status/:jobId', async (req, res) => {
+  const { jobId } = req.params;
+
+  try {
+    const statusRes = await axios.get(
+      `https://api.runpod.ai/v2/${ENDPOINT_ID}/status/${jobId}`,
+      {
+        headers: { Authorization: `Bearer ${RUNPOD_API_KEY}` },
+        timeout: 15000,
+      }
+    );
+
+    const data = statusRes.data;
+    console.log('RunPod status:', data.status);
+
+    if (data.status === 'FAILED') {
+      return res.status(500).json({ error: data.error || 'RunPod job failed' });
     }
 
-    const output = fullResponse.output;
-    if (output === undefined || output === null) {
-      return res.status(500).json({ error: 'No output from RunPod', raw: fullResponse });
+    if (data.status !== 'COMPLETED') {
+      return res.json({ status: data.status });
     }
 
+    const output = data.output;
     const parsed = typeof output === 'string' ? JSON.parse(output) : output;
     const segments = parsed?.[0]?.result?.flat() ?? [];
     const text = segments.length > 0
@@ -87,16 +98,10 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
       return `${i + 1}\n${fmt(s.start)} --> ${fmt(s.end)}\n${s.text.trim()}\n`;
     }).join('\n');
 
-    res.json({ text, srt });
+    res.json({ status: 'COMPLETED', text, srt });
   } catch (err) {
-    const errData = err.response?.data;
-    const errMsg = err.message;
-    console.error('Error:', errData || errMsg);
-    fs.writeFileSync('runpod-response.json', JSON.stringify({ errData, errMsg }, null, 2));
-    const status = err.response?.status || 500;
-    res.status(status).json({ error: errData || errMsg });
-  } finally {
-    fs.unlink(filepath, () => {});
+    console.error('Error polling status:', err.response?.data || err.message);
+    res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
   }
 });
 

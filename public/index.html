@@ -135,7 +135,7 @@
       document.getElementById('srtBlock').style.display = 'none';
 
       btn.disabled = true;
-      status.textContent = 'מתמלל...';
+      status.textContent = 'מעלה קובץ...';
 
       const form = new FormData();
       form.append('audio', file);
@@ -143,22 +143,54 @@
       try {
         const res = await fetch('/transcribe', { method: 'POST', body: form });
         const data = await res.json();
-        if (data.text) {
-          lastData = data;
-          document.getElementById('textResult').textContent = data.text;
-          document.getElementById('textBlock').style.display = 'block';
-          if (data.srt) {
-            document.getElementById('srtResult').textContent = data.srt;
-            document.getElementById('srtBlock').style.display = 'block';
-          }
-          status.textContent = '';
-        } else {
+        if (!res.ok || data.error) {
           status.textContent = 'שגיאה: ' + JSON.stringify(data.error);
+          return;
         }
+
+        const { jobId } = data;
+        status.textContent = 'מתמלל...';
+        await pollStatus(jobId);
       } catch (e) {
         status.textContent = 'שגיאת רשת: ' + e.message;
       } finally {
         btn.disabled = false;
+      }
+    }
+
+    async function pollStatus(jobId) {
+      const status = document.getElementById('status');
+      let dots = 0;
+
+      while (true) {
+        await new Promise(r => setTimeout(r, 3000));
+        dots = (dots + 1) % 4;
+        status.textContent = 'מתמלל' + '.'.repeat(dots + 1);
+
+        try {
+          const res = await fetch('/status/' + jobId);
+          const data = await res.json();
+
+          if (!res.ok || data.error) {
+            status.textContent = 'שגיאה: ' + JSON.stringify(data.error);
+            return;
+          }
+
+          if (data.status === 'COMPLETED') {
+            lastData = data;
+            document.getElementById('textResult').textContent = data.text;
+            document.getElementById('textBlock').style.display = 'block';
+            if (data.srt) {
+              document.getElementById('srtResult').textContent = data.srt;
+              document.getElementById('srtBlock').style.display = 'block';
+            }
+            status.textContent = '';
+            return;
+          }
+        } catch (e) {
+          status.textContent = 'שגיאת רשת: ' + e.message;
+          return;
+        }
       }
     }
 
