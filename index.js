@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3000;
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
 
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
 const ENDPOINT_ID = process.env.ENDPOINT_ID;
