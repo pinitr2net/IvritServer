@@ -144,7 +144,7 @@
         const res = await fetch('/transcribe', { method: 'POST', body: form });
         const data = await res.json();
         if (!res.ok || data.error) {
-          status.textContent = 'שגיאה: ' + JSON.stringify(data.error);
+          status.textContent = 'שגיאה: ' + JSON.stringify(data.error ?? data);
           return;
         }
 
@@ -172,7 +172,7 @@
           const data = await res.json();
 
           if (!res.ok || data.error) {
-            status.textContent = 'שגיאה: ' + JSON.stringify(data.error);
+            status.textContent = 'שגיאה: ' + JSON.stringify(data.error ?? data);
             return;
           }
 
