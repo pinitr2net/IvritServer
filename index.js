@@ -18,12 +18,20 @@ const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
 const ENDPOINT_ID = process.env.ENDPOINT_ID;
 
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(UPLOADS_DIR));
+
+const jobFiles = new Map();
 
 app.post('/transcribe', upload.single('audio'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No audio file provided' });
 
-  const audioBase64 = req.file.buffer.toString('base64');
-  console.log('Sending audio as base64, size:', audioBase64.length);
+  const ext = path.extname(req.file.originalname) || '.mp3';
+  const filename = crypto.randomUUID() + ext;
+  const filepath = path.join(UPLOADS_DIR, filename);
+  fs.writeFileSync(filepath, req.file.buffer);
+
+  const fileUrl = `${BASE_URL}/uploads/${filename}`;
+  console.log('Sending audio URL:', fileUrl);
 
   try {
     const runpodRes = await axios.post(
@@ -32,7 +40,7 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
         input: {
           model: 'ivrit-ai/whisper-large-v3-turbo-ct2',
           transcribe_args: {
-            blob: audioBase64,
+            url: fileUrl,
             language: 'he',
             verbose: false,
           },
@@ -48,10 +56,15 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     );
 
     const jobId = runpodRes.data?.id;
-    if (!jobId) return res.status(500).json({ error: 'No job ID from RunPod', raw: runpodRes.data });
+    if (!jobId) {
+      fs.unlink(filepath, () => {});
+      return res.status(500).json({ error: 'No job ID from RunPod', raw: runpodRes.data });
+    }
 
+    jobFiles.set(jobId, filepath);
     res.json({ jobId });
   } catch (err) {
+    fs.unlink(filepath, () => {});
     console.error('Error submitting job:', err.response?.data || err.message);
     res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
   }
@@ -73,12 +86,17 @@ app.get('/status/:jobId', async (req, res) => {
     console.log('RunPod status:', data.status);
 
     if (data.status === 'FAILED') {
+      fs.unlink(jobFiles.get(jobId) || '', () => {});
+      jobFiles.delete(jobId);
       return res.status(500).json({ error: data.error || 'RunPod job failed' });
     }
 
     if (data.status !== 'COMPLETED') {
       return res.json({ status: data.status });
     }
+
+    fs.unlink(jobFiles.get(jobId) || '', () => {});
+    jobFiles.delete(jobId);
 
     const output = data.output;
     const parsed = typeof output === 'string' ? JSON.parse(output) : output;
