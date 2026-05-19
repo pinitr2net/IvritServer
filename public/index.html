@@ -86,6 +86,60 @@
       font-family: Arial, sans-serif;
     }
     .downloads { margin-top: 0.75rem; text-align: left; }
+    .divider { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
+    textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 0.75rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-family: Arial, sans-serif;
+      resize: vertical;
+      box-sizing: border-box;
+      margin-bottom: 0.75rem;
+    }
+    .verse-card {
+      background: white;
+      border: 1px solid #ddd6fe;
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      text-align: right;
+    }
+    .verse-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.4rem;
+    }
+    .verse-name { font-weight: bold; color: #5b21b6; font-size: 1rem; }
+    .verse-time { font-size: 0.85rem; color: #888; font-family: monospace; direction: ltr; }
+    .verse-srt { font-size: 0.85rem; color: #555; margin-bottom: 0.25rem; line-height: 1.4; }
+    .verse-original { font-size: 0.9rem; color: #333; line-height: 1.5; }
+    .verse-label { font-weight: bold; color: #999; margin-left: 0.3rem; }
+    .verse-missing {
+      color: #92400e;
+      padding: 0.4rem 0.75rem;
+      background: #fef3c7;
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      text-align: right;
+    }
+    .verse-status { margin-top: 0.75rem; font-size: 1rem; font-weight: bold; text-align: center; }
+    #claudeResult {
+      margin-top: 1rem;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: right;
+      white-space: pre-wrap;
+      font-size: 1rem;
+      line-height: 1.6;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -95,16 +149,18 @@
     <button class="btn-primary" id="btn" onclick="transcribe()">תמלל</button>
     <div id="status"></div>
 
-    <div class="result-block" id="textBlock">
+    <div class="result-block" id="textBlock" style="display:block;">
       <div class="result-header" onclick="toggle('textBody', 'textArrow')">
         <h3>טקסט</h3>
         <span class="arrow" id="textArrow">▼</span>
       </div>
       <div class="result-body" id="textBody">
-        <pre id="textResult"></pre>
+        <textarea id="textResult" style="width:100%;min-height:120px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-size:1rem;font-family:Arial,sans-serif;resize:vertical;box-sizing:border-box;" placeholder="הדבק טקסט כאן או תמלל קובץ..."></textarea>
         <div class="downloads">
           <button class="btn-download" onclick="download('text')">הורד TXT</button>
+          <button class="btn-download" id="versesBtn" onclick="findVerses()" style="background:#7c3aed;">זיהוי פסוקים ברצף</button>
         </div>
+        <div id="versesResult" style="display:none;margin-top:1rem;"></div>
       </div>
     </div>
 
@@ -120,10 +176,103 @@
         </div>
       </div>
     </div>
+    <hr class="divider">
+    <h2 style="color:#333;margin-bottom:1rem;">זיהוי פסוקים ברצף</h2>
+    <textarea id="manualInput" placeholder="הדבק כאן טקסט או SRT לזיהוי פסוקים ברצף..."></textarea>
+    <button class="btn-primary" id="manualVersesBtn" onclick="findVersesManual()" style="background:#7c3aed;">זיהוי פסוקים ברצף</button>
+    <div id="manualVersesResult" style="display:none;margin-top:1rem;"></div>
   </div>
 
   <script>
     let lastData = {};
+    let lastVersesData = [];
+
+    function escHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function srtTimeToMs(t) {
+      const [h, m, s] = t.split(':').map(Number);
+      return (h * 3600 + m * 60 + s) * 1000;
+    }
+
+    function msToSrtTime(ms) {
+      const h = Math.floor(ms / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      const ms2 = ms % 1000;
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')},${String(ms2).padStart(3,'0')}`;
+    }
+
+    function lastSrtEndTime() {
+      const srt = lastData.srt || '';
+      const matches = [...srt.matchAll(/\d{2}:\d{2}:\d{2},\d{3} --> (\d{2}:\d{2}:\d{2},\d{3})/g)];
+      if (!matches.length) return null;
+      const last = matches[matches.length - 1][1];
+      const [t, ms] = last.split(',');
+      return srtTimeToMs(t) + parseInt(ms);
+    }
+
+    function generateVerseSrt(verses) {
+      const detected = verses.filter(v => !v.missing && v.startTime);
+      if (!detected.length) return '';
+      const lastEnd = lastSrtEndTime();
+      return detected.map((v, i) => {
+        const start = msToSrtTime(srtTimeToMs(v.startTime));
+        const end = i < detected.length - 1
+          ? msToSrtTime(srtTimeToMs(detected[i + 1].startTime))
+          : lastEnd !== null ? msToSrtTime(lastEnd) : msToSrtTime(srtTimeToMs(v.startTime) + 30000);
+        return `${i + 1}\n${start} --> ${end}\n${v.verse}`;
+      }).join('\n\n');
+    }
+
+    function downloadVerseSrt() {
+      const srt = generateVerseSrt(lastVersesData);
+      if (!srt) return;
+      const blob = new Blob([srt], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'verses.srt';
+      a.click();
+    }
+
+    function renderVerses(data, container) {
+      if (data.error) {
+        container.textContent = 'שגיאה: ' + data.error;
+        container.style.display = 'block';
+        return;
+      }
+      const { verses = [], complete } = data;
+      lastVersesData = verses;
+      const detected = verses.filter(v => !v.missing);
+      const first = detected[0]?.verse ?? '';
+      const last = detected[detected.length - 1]?.verse ?? '';
+      const range = first === last ? first : `${first} — ${last}`;
+      let html = `<div class="verse-status">${complete ? '✅ הרצף שלם' : '⚠️ יש חורים ברצף'}</div>`;
+      if (range) html += `<div style="text-align:right;margin-bottom:0.75rem;font-size:0.9rem;color:#555;">טווח: <strong>${escHtml(range)}</strong></div>`;
+      if (detected.some(v => v.startTime)) {
+        html += `<div style="text-align:left;margin-bottom:0.75rem;"><button class="btn-download" onclick="downloadVerseSrt()">הורד SRT פסוקים</button></div>`;
+      }
+      for (const v of verses) {
+        if (v.missing) {
+          html += `<div class="verse-missing">⚠️ חסר: ${escHtml(v.verse)}${v.verseText ? ` &mdash; <em>${escHtml(v.verseText)}</em>` : ''}</div>`;
+        } else {
+          html += `<div class="verse-card">
+            <div class="verse-header">
+              <span class="verse-name">${escHtml(v.verse)}</span>
+              <span style="display:flex;gap:0.5rem;align-items:center;">
+                ${v.subtitleNum ? `<span class="verse-label" style="font-size:0.8rem;">#${escHtml(String(v.subtitleNum))}</span>` : ''}
+                ${v.startTime ? `<span class="verse-time">${escHtml(v.startTime)}</span>` : ''}
+              </span>
+            </div>
+            ${v.srtExcerpt ? `<div class="verse-srt"><span class="verse-label">SRT:</span> &ldquo;${escHtml(v.srtExcerpt)}&rdquo;</div>` : ''}
+            ${v.verseText ? `<div class="verse-original"><span class="verse-label">פסוק:</span> ${escHtml(v.verseText)}</div>` : ''}
+          </div>`;
+        }
+      }
+      container.innerHTML = html;
+      container.style.display = 'block';
+    }
 
     async function transcribe() {
       const file = document.getElementById('audioFile').files[0];
@@ -178,7 +327,7 @@
 
           if (data.status === 'COMPLETED') {
             lastData = data;
-            document.getElementById('textResult').textContent = data.text;
+            document.getElementById('textResult').value = data.text;
             document.getElementById('textBlock').style.display = 'block';
             if (data.srt) {
               document.getElementById('srtResult').textContent = data.srt;
@@ -202,8 +351,97 @@
       arrow.textContent = open ? '▼' : '▲';
     }
 
+    async function findVerses() {
+      const text = document.getElementById('textResult').value.trim();
+      if (!text) { alert('אין טקסט'); return; }
+
+      const btn = document.getElementById('versesBtn');
+      const result = document.getElementById('versesResult');
+
+      btn.disabled = true;
+      btn.textContent = 'מחפש...';
+      result.style.display = 'none';
+
+      try {
+        const res = await fetch('/find-verses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        const data = await res.json();
+        renderVerses(data, result);
+      } catch (e) {
+        result.textContent = 'שגיאת רשת: ' + e.message;
+        result.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'זיהוי פסוקים ברצף';
+      }
+    }
+
+    async function findVersesManual() {
+      const text = document.getElementById('manualInput').value.trim();
+      if (!text) { alert('הדבק טקסט'); return; }
+
+      const btn = document.getElementById('manualVersesBtn');
+      const result = document.getElementById('manualVersesResult');
+
+      btn.disabled = true;
+      btn.textContent = 'מחפש...';
+      result.style.display = 'none';
+
+      try {
+        const res = await fetch('/find-verses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        const data = await res.json();
+        renderVerses(data, result);
+      } catch (e) {
+        result.textContent = 'שגיאת רשת: ' + e.message;
+        result.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'זיהוי פסוקים ברצף';
+      }
+    }
+
+    async function sendToClaude() {
+      const text = document.getElementById('claudeInput').value.trim();
+      if (!text) { alert('הזן טקסט'); return; }
+
+      const btn = document.getElementById('claudeBtn');
+      const status = document.getElementById('claudeStatus');
+      const result = document.getElementById('claudeResult');
+
+      btn.disabled = true;
+      status.textContent = 'שולח לקלוד...';
+      result.style.display = 'none';
+
+      try {
+        const res = await fetch('/claude', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          status.textContent = 'שגיאה: ' + JSON.stringify(data.error ?? data);
+          return;
+        }
+        result.textContent = data.result;
+        result.style.display = 'block';
+        status.textContent = '';
+      } catch (e) {
+        status.textContent = 'שגיאת רשת: ' + e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
     function download(type) {
-      const content = type === 'srt' ? lastData.srt : lastData.text;
+      const content = type === 'srt' ? lastData.srt : document.getElementById('textResult').value;
       const ext = type === 'srt' ? 'srt' : 'txt';
       const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
       const a = document.createElement('a');
