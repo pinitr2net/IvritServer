@@ -222,7 +222,7 @@
         const end = i < detected.length - 1
           ? msToSrtTime(srtTimeToMs(detected[i + 1].startTime))
           : lastEnd !== null ? msToSrtTime(lastEnd) : msToSrtTime(srtTimeToMs(v.startTime) + 30000);
-        return `${i + 1}\n${start} --> ${end}\n${v.verse}`;
+        return `${i + 1}\n${start} --> ${end}\n${v.verseText || v.verse}`;
       }).join('\n\n');
     }
 
@@ -237,7 +237,7 @@
     }
 
     function renderVerses(data, container) {
-      if (data.error) {
+if (data.error) {
         container.textContent = 'שגיאה: ' + data.error;
         container.style.display = 'block';
         return;
@@ -253,13 +253,15 @@
       if (detected.some(v => v.startTime)) {
         html += `<div style="text-align:left;margin-bottom:0.75rem;"><button class="btn-download" onclick="downloadVerseSrt()">הורד SRT פסוקים</button></div>`;
       }
+      let verseIndex = 0;
       for (const v of verses) {
         if (v.missing) {
           html += `<div class="verse-missing">⚠️ חסר: ${escHtml(v.verse)}${v.verseText ? ` &mdash; <em>${escHtml(v.verseText)}</em>` : ''}</div>`;
         } else {
+          verseIndex++;
           html += `<div class="verse-card">
             <div class="verse-header">
-              <span class="verse-name">${escHtml(v.verse)}</span>
+              <span class="verse-name"><span style="color:#aaa;font-weight:normal;margin-left:0.4rem;">${verseIndex}.</span>${escHtml(v.verse)}</span>
               <span style="display:flex;gap:0.5rem;align-items:center;">
                 ${v.subtitleNum ? `<span class="verse-label" style="font-size:0.8rem;">#${escHtml(String(v.subtitleNum))}</span>` : ''}
                 ${v.startTime ? `<span class="verse-time">${escHtml(v.startTime)}</span>` : ''}
@@ -269,6 +271,17 @@
             ${v.verseText ? `<div class="verse-original"><span class="verse-label">פסוק:</span> ${escHtml(v.verseText)}</div>` : ''}
           </div>`;
         }
+      }
+      if (data.claudeRaw) {
+        html += `<div style="margin-top:1rem;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+          <div style="background:#f1f5f9;padding:0.6rem 1rem;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block';this.querySelector('.dbg-arrow').textContent=this.nextElementSibling.style.display==='block'?'▲':'▼'">
+            <span style="font-size:0.85rem;color:#888;">תשובת קלוד הגולמית</span>
+            <span class="dbg-arrow" style="font-size:0.75rem;color:#888;">▼</span>
+          </div>
+          <div style="display:none;padding:1rem;background:#f8fafc;">
+            <textarea style="width:100%;min-height:200px;font-size:0.8rem;font-family:monospace;direction:ltr;resize:vertical;border:none;background:transparent;outline:none;" readonly>${escHtml(JSON.stringify(JSON.parse(data.claudeRaw), null, 2))}</textarea>
+          </div>
+        </div>`;
       }
       container.innerHTML = html;
       container.style.display = 'block';

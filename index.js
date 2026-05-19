@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const Anthropic = require('@anthropic-ai/sdk');
+const { sefariaGet, getVerse } = require('./sefaria');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -189,7 +190,7 @@ app.post('/find-verses', express.json(), async (req, res) => {
   try {
     const response = await anthropic.messages.create({
       model: 'claude-opus-4-7',
-      max_tokens: 4096,
+      max_tokens: 16000,
       messages: [{
         role: 'user',
         content: `להלן ${isSrt ? 'כתוביות SRT בפורמט: מספר|זמן|טקסט' : 'טקסט'} של שיעור תנ"ך.
@@ -197,7 +198,9 @@ app.post('/find-verses', express.json(), async (req, res) => {
 החזר JSON בלבד — ללא הסבר, ללא markdown.
 
 פורמט:
-{"verses":[{"verse":"ספר פרק:פסוק","book":"שם הספר","chapterNum":45,"verseNum":15,"subtitleNum":4,"srtExcerpt":"ציטוט ממשי מהטקסט","verseText":"נוסח הפסוק המלא"}]}
+{"verses":[{"book":"Genesis","chapterNum":45,"verseNum":15,"subtitleNum":4,"srtExcerpt":"ציטוט ממשי מהטקסט"}]}
+
+book חייב להיות השם האנגלי כפי שספריא מצפה (Genesis, Exodus, Leviticus, Numbers, Deuteronomy, Joshua, Judges, I Samuel, II Samuel, I Kings, II Kings, Isaiah, Jeremiah, Ezekiel, Hosea, Joel, Amos, Obadiah, Jonah, Micah, Nahum, Habakkuk, Zephaniah, Haggai, Zechariah, Malachi, Psalms, Proverbs, Job, Song of Songs, Ruth, Lamentations, Ecclesiastes, Esther, Daniel, Ezra, Nehemiah, I Chronicles, II Chronicles)
 
 כללים:
 1. זהה פסוק רק אם מילות הפסוק עצמו מצוטטות בטקסט — לא הסבר, לא פרפרזה, לא תרגום
@@ -210,22 +213,39 @@ ${claudeInput}`,
     });
 
     const rawText = response.content.find(b => b.type === 'text')?.text ?? '';
+    console.log('Claude stop_reason:', response.stop_reason, 'response length:', rawText.length);
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return res.status(500).json({ error: 'תשובה לא תקינה מקלוד', raw: rawText });
 
     const parsed = JSON.parse(jsonMatch[0]);
     const segmentMap = new Map(segments.map(s => [s.num, s.startTime]));
 
-    const detectedVerses = (parsed.verses || []).map(v => {
+    const detectedVerses = await Promise.all((parsed.verses || []).map(async v => {
       const startRaw = v.subtitleNum ? segmentMap.get(v.subtitleNum) : undefined;
-      const verseHeb = v.book && v.chapterNum && v.verseNum
-        ? `${v.book} ${numToHebrew(v.chapterNum)}:${numToHebrew(v.verseNum)}`
-        : v.verse;
-      return { ...v, verse: verseHeb, startTime: startRaw ? startRaw.split(',')[0] : undefined };
+      let verse = `${v.book} ${numToHebrew(v.chapterNum)}:${numToHebrew(v.verseNum)}`;
+      let verseText = null;
+      if (v.book && v.chapterNum && v.verseNum) {
+        try {
+          const sefaria = await getVerse(v.book, v.chapterNum, v.verseNum);
+          if (sefaria.heRef) verse = sefaria.heRef;
+          verseText = sefaria.verseText;
+        } catch (e) {
+          console.warn('Sefaria lookup failed:', v.book, v.chapterNum, v.verseNum, e.message);
+        }
+      }
+      return { ...v, verse, verseText, startTime: startRaw ? startRaw.split(',')[0] : undefined };
+    }));
+
+    const seen = new Set();
+    const uniqueVerses = detectedVerses.filter(v => {
+      const key = `${v.chapterNum}:${v.verseNum}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
     });
 
-    const { verses, complete } = detectGaps(detectedVerses);
-    res.json({ verses, complete });
+    const { verses, complete } = detectGaps(uniqueVerses);
+    res.json({ verses, complete, claudeRaw: jsonMatch[0] });
   } catch (err) {
     console.error('find-verses error:', err.message);
     res.status(500).json({ error: err.message });
