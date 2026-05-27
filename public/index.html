@@ -102,6 +102,7 @@
     .verse-card {
       background: white;
       border: 1px solid #ddd6fe;
+      transition: background 0.2s, border-color 0.2s;
       border-radius: 8px;
       padding: 0.75rem;
       margin-bottom: 0.5rem;
@@ -118,6 +119,11 @@
     .verse-srt { font-size: 0.85rem; color: #555; margin-bottom: 0.25rem; line-height: 1.4; }
     .verse-original { font-size: 0.9rem; color: #333; line-height: 1.5; }
     .verse-label { font-weight: bold; color: #999; margin-left: 0.3rem; }
+    .verse-card.active {
+      background: #fff3cd;
+      border-color: #f5a623;
+      border-width: 2px;
+    }
     .verse-missing {
       color: #92400e;
       padding: 0.4rem 0.75rem;
@@ -128,6 +134,41 @@
       text-align: right;
     }
     .verse-status { margin-top: 0.75rem; font-size: 1rem; font-weight: bold; text-align: center; }
+    #srtPlayer { width: 100%; margin-bottom: 0.5rem; }
+    #srtSegmentsContainer {
+      max-height: 350px;
+      overflow-y: auto;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 4px;
+      margin-bottom: 0.5rem;
+    }
+    .srt-segment {
+      padding: 5px 10px;
+      margin: 2px 0;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s;
+      font-family: Arial, sans-serif;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      direction: rtl;
+      text-align: right;
+    }
+    .srt-segment:hover { background: #f1f5f9; }
+    .srt-segment.active {
+      background: #fff3cd;
+      border-right: 4px solid #f5a623;
+      font-weight: bold;
+    }
+    .srt-time {
+      font-size: 0.75rem;
+      color: #aaa;
+      font-family: monospace;
+      direction: ltr;
+      display: inline-block;
+      margin-left: 0.5rem;
+    }
     #claudeResult {
       margin-top: 1rem;
       background: #f8fafc;
@@ -170,12 +211,28 @@
         <span class="arrow" id="srtArrow">▼</span>
       </div>
       <div class="result-body" id="srtBody">
-        <pre id="srtResult"></pre>
+        <audio id="srtPlayer" controls style="display:none;"></audio>
+        <div id="srtSegmentsContainer" style="display:none;"></div>
+        <pre id="srtResult" style="display:none;"></pre>
         <div class="downloads">
           <button class="btn-download" onclick="download('srt')">הורד SRT</button>
+          <button class="btn-download" id="srtVersesBtn" onclick="findVersesSrt()" style="background:#7c3aed;">זיהוי פסוקים ברצף</button>
         </div>
+        <div id="srtVersesResult" style="display:none;margin-top:1rem;"></div>
       </div>
     </div>
+
+    <div style="margin-top:0.75rem;text-align:right;">
+      <button class="btn-download" style="background:#64748b;" onclick="toggleManualSrt()">הדבק SRT ידנית</button>
+      <div id="manualSrtArea" style="display:none;margin-top:0.5rem;">
+        <div style="margin-bottom:0.4rem;text-align:left;">
+          <input type="file" id="manualSrtFile" accept=".srt,text/plain" style="font-size:0.85rem;">
+        </div>
+        <textarea id="manualSrtInput" placeholder="הדבק כאן SRT..." style="width:100%;min-height:120px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;font-family:monospace;direction:ltr;resize:vertical;box-sizing:border-box;"></textarea>
+        <button class="btn-primary" style="margin-top:0.4rem;" onclick="loadManualSrt()">טען נגן</button>
+      </div>
+    </div>
+
     <hr class="divider">
     <h2 style="color:#333;margin-bottom:1rem;">זיהוי פסוקים ברצף</h2>
     <textarea id="manualInput" placeholder="הדבק כאן טקסט או SRT לזיהוי פסוקים ברצף..."></textarea>
@@ -186,6 +243,12 @@
   <script>
     let lastData = {};
     let lastVersesData = [];
+    let selectedAudioFile = null;
+    let srtSegments = [];
+
+    document.getElementById('audioFile').addEventListener('change', function () {
+      selectedAudioFile = this.files[0] || null;
+    });
 
     function escHtml(s) {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -259,7 +322,7 @@ if (data.error) {
           html += `<div class="verse-missing">⚠️ חסר: ${escHtml(v.verse)}${v.verseText ? ` &mdash; <em>${escHtml(v.verseText)}</em>` : ''}</div>`;
         } else {
           verseIndex++;
-          html += `<div class="verse-card">
+          html += `<div class="verse-card"${v.startTime ? ` data-start="${srtTimeSec(v.startTime)}"` : ''}>
             <div class="verse-header">
               <span class="verse-name"><span style="color:#aaa;font-weight:normal;margin-left:0.4rem;">${verseIndex}.</span>${escHtml(v.verse)}</span>
               <span style="display:flex;gap:0.5rem;align-items:center;">
@@ -285,6 +348,118 @@ if (data.error) {
       }
       container.innerHTML = html;
       container.style.display = 'block';
+    }
+
+    function parseSrt(srtText) {
+      return srtText.trim().split(/\n\s*\n/).map(block => {
+        const lines = block.trim().split('\n');
+        if (lines.length < 3) return null;
+        const times = lines[1].split(' --> ');
+        if (times.length < 2) return null;
+        return {
+          id: parseInt(lines[0]),
+          start: srtTimeSec(times[0].trim()),
+          end: srtTimeSec(times[1].trim()),
+          text: lines.slice(2).join('\n'),
+        };
+      }).filter(s => s && !isNaN(s.start));
+    }
+
+    function srtTimeSec(t) {
+      const [hms, ms] = t.split(',');
+      const [h, m, s] = hms.split(':').map(Number);
+      return h * 3600 + m * 60 + s + (parseInt(ms || 0) / 1000);
+    }
+
+    function fmtSec(sec) {
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = Math.floor(sec % 60);
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+
+    function renderSrtSegments(segments) {
+      const container = document.getElementById('srtSegmentsContainer');
+      container.innerHTML = '';
+      segments.forEach(seg => {
+        const div = document.createElement('div');
+        div.className = 'srt-segment';
+        div.dataset.start = seg.start;
+        div.dataset.end = seg.end;
+        div.innerHTML = `<span class="srt-time">${fmtSec(seg.start)}</span>${escHtml(seg.text)}`;
+        div.addEventListener('click', () => {
+          const audio = document.getElementById('srtPlayer');
+          audio.currentTime = seg.start;
+          audio.play();
+        });
+        container.appendChild(div);
+      });
+      container.style.display = 'block';
+    }
+
+    function setupAudioPlayer(file) {
+      const audio = document.getElementById('srtPlayer');
+      if (audio._blobUrl) URL.revokeObjectURL(audio._blobUrl);
+      audio._blobUrl = URL.createObjectURL(file);
+      audio.src = audio._blobUrl;
+      audio.style.display = 'block';
+      audio.ontimeupdate = () => {
+        const t = audio.currentTime;
+        const container = document.getElementById('srtSegmentsContainer');
+        let activeEl = null;
+        container.querySelectorAll('.srt-segment').forEach(div => {
+          const start = parseFloat(div.dataset.start);
+          const end = parseFloat(div.dataset.end);
+          if (t >= start && t < end) {
+            div.classList.add('active');
+            activeEl = div;
+          } else {
+            div.classList.remove('active');
+          }
+        });
+        if (activeEl) activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+        // highlight active verse card
+        const verseCards = [...document.querySelectorAll('.verse-card[data-start]')];
+        verseCards.forEach(c => c.classList.remove('active'));
+        let activeVerse = null;
+        for (const c of verseCards) {
+          if (parseFloat(c.dataset.start) <= t) activeVerse = c;
+        }
+        if (activeVerse) activeVerse.classList.add('active');
+      };
+    }
+
+    document.getElementById('manualSrtFile').addEventListener('change', function () {
+      const file = this.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => { document.getElementById('manualSrtInput').value = e.target.result; };
+      reader.readAsText(file, 'utf-8');
+    });
+
+    function toggleManualSrt() {
+      const area = document.getElementById('manualSrtArea');
+      area.style.display = area.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function loadManualSrt() {
+      const srtText = document.getElementById('manualSrtInput').value.trim();
+      if (!srtText) { alert('הדבק SRT תחילה'); return; }
+      lastData.srt = srtText;
+      document.getElementById('srtResult').textContent = srtText;
+      srtSegments = parseSrt(srtText);
+      if (!srtSegments.length) { alert('לא זוהו segments ב-SRT'); return; }
+      renderSrtSegments(srtSegments);
+      document.getElementById('srtBlock').style.display = 'block';
+      document.getElementById('srtBody').style.display = 'block';
+      document.getElementById('srtArrow').textContent = '▲';
+      if (selectedAudioFile) {
+        setupAudioPlayer(selectedAudioFile);
+      } else {
+        alert('בחר קובץ אודיו בחלק העליון');
+      }
+      document.getElementById('manualSrtArea').style.display = 'none';
     }
 
     async function transcribe() {
@@ -345,6 +520,11 @@ if (data.error) {
             if (data.srt) {
               document.getElementById('srtResult').textContent = data.srt;
               document.getElementById('srtBlock').style.display = 'block';
+              srtSegments = parseSrt(data.srt);
+              renderSrtSegments(srtSegments);
+              if (selectedAudioFile) setupAudioPlayer(selectedAudioFile);
+              document.getElementById('srtBody').style.display = 'block';
+              document.getElementById('srtArrow').textContent = '▲';
             }
             status.textContent = '';
             return;
@@ -370,6 +550,34 @@ if (data.error) {
 
       const btn = document.getElementById('versesBtn');
       const result = document.getElementById('versesResult');
+
+      btn.disabled = true;
+      btn.textContent = 'מחפש...';
+      result.style.display = 'none';
+
+      try {
+        const res = await fetch('/find-verses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        const data = await res.json();
+        renderVerses(data, result);
+      } catch (e) {
+        result.textContent = 'שגיאת רשת: ' + e.message;
+        result.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'זיהוי פסוקים ברצף';
+      }
+    }
+
+    async function findVersesSrt() {
+      const text = document.getElementById('srtResult').textContent.trim();
+      if (!text) { alert('אין כתוביות SRT'); return; }
+
+      const btn = document.getElementById('srtVersesBtn');
+      const result = document.getElementById('srtVersesResult');
 
       btn.disabled = true;
       btn.textContent = 'מחפש...';
