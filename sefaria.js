@@ -29,7 +29,13 @@ async function sefariaGet(urlPath) {
 
 function stripHtml(str) {
   if (typeof str !== 'string') return null;
-  return str.replace(/<[^>]+>/g, '').replace(/&thinsp;/g, '').replace(/&[a-z]+;/g, '').trim();
+  return str
+    .replace(/<[^>]+>/g, '')
+    .replace(/&thinsp;/g, '')
+    .replace(/&[a-z]+;/g, '')
+    .replace(/\{[פס]\}/g, '')
+    .replace(/[֑-֯]/g, '')
+    .trim();
 }
 
 async function getVerse(bookEn, chapter, verse) {
