@@ -178,7 +178,7 @@ app.get('/status/:jobId', async (req, res) => {
 });
 
 app.post('/find-verses', express.json(), async (req, res) => {
-  const { text } = req.body;
+  const { text, includeTopics = false } = req.body;
   if (!text) return res.status(400).json({ error: 'No text provided' });
 
   const segments = parseSrt(text);
@@ -186,6 +186,14 @@ app.post('/find-verses', express.json(), async (req, res) => {
   const claudeInput = isSrt
     ? segments.map(s => `${s.num}|${s.startTime}|${s.text}`).join('\n')
     : text;
+
+  const topicsFormat = includeTopics
+    ? `{"verses":[{"book":"Genesis","chapterNum":45,"verseNum":15,"subtitleNum":4,"srtExcerpt":"ציטוט ממשי מהטקסט"}],"topics":[{"title":"כותרת נושא בעברית","subtitleNum":1}]}`
+    : `{"verses":[{"book":"Genesis","chapterNum":45,"verseNum":15,"subtitleNum":4,"srtExcerpt":"ציטוט ממשי מהטקסט"}]}`;
+
+  const topicsInstructions = includeTopics
+    ? `\n5. נושאים: חלק את השיעור ל-3–8 נושאים עיקריים לפי תוכן. כל נושא — כותרת קצרה בעברית ו-subtitleNum של הכתובית שבה מתחיל הנושא. נושאים בסדר כרונולוגי.`
+    : '';
 
   try {
     const response = await anthropic.messages.create({
@@ -198,7 +206,7 @@ app.post('/find-verses', express.json(), async (req, res) => {
 החזר JSON בלבד — ללא הסבר, ללא markdown.
 
 פורמט:
-{"verses":[{"book":"Genesis","chapterNum":45,"verseNum":15,"subtitleNum":4,"srtExcerpt":"ציטוט ממשי מהטקסט"}]}
+${topicsFormat}
 
 book חייב להיות השם האנגלי כפי שספריא מצפה (Genesis, Exodus, Leviticus, Numbers, Deuteronomy, Joshua, Judges, I Samuel, II Samuel, I Kings, II Kings, Isaiah, Jeremiah, Ezekiel, Hosea, Joel, Amos, Obadiah, Jonah, Micah, Nahum, Habakkuk, Zephaniah, Haggai, Zechariah, Malachi, Psalms, Proverbs, Job, Song of Songs, Ruth, Lamentations, Ecclesiastes, Esther, Daniel, Ezra, Nehemiah, I Chronicles, II Chronicles)
 
@@ -206,7 +214,7 @@ book חייב להיות השם האנגלי כפי שספריא מצפה (Genes
 1. זהה פסוק רק אם מילות הפסוק עצמו מצוטטות בטקסט — לא הסבר, לא פרפרזה, לא תרגום
 2. סדר המיפוי חייב להיות עקבי: ככל שמספר הכתובית עולה, chapterNum ו-verseNum חייבים לעלות גם הם. זיהוי שובר את הסדר — פסול
 3. החזר רק פסוקים שזוהו — אל תכלול פסוקים חסרים
-4. השתמש במספור פרקים ופסוקים לפי הנוסח העברי המסורתי (מסורה) — לא לפי תרגום LXX או נוסח נוצרי
+4. השתמש במספור פרקים ופסוקים לפי הנוסח העברי המסורתי (מסורה) — לא לפי תרגום LXX או נוסח נוצרי${topicsInstructions}
 
 ${isSrt ? 'כתוביות' : 'טקסט'}:
 ${claudeInput}`,
@@ -246,7 +254,16 @@ ${claudeInput}`,
     });
 
     const { verses, complete } = detectGaps(uniqueVerses);
-    res.json({ verses, complete, claudeRaw: jsonMatch[0] });
+
+    const topics = includeTopics
+      ? (parsed.topics || []).map(t => ({
+          title: t.title,
+          subtitleNum: t.subtitleNum,
+          startTime: t.subtitleNum ? segmentMap.get(t.subtitleNum)?.split(',')[0] : undefined,
+        }))
+      : undefined;
+
+    res.json({ verses, complete, ...(topics !== undefined && { topics }), claudeRaw: jsonMatch[0] });
   } catch (err) {
     console.error('find-verses error:', err.message);
     res.status(500).json({ error: err.message });

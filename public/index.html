@@ -22,7 +22,7 @@
       border-radius: 12px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.1);
       width: 100%;
-      max-width: 600px;
+      max-width: 960px;
       text-align: center;
     }
     h1 { color: #333; margin-bottom: 1.5rem; }
@@ -54,38 +54,6 @@
       margin-right: 0.5rem;
     }
     #status { margin-top: 1rem; color: #666; font-size: 0.9rem; }
-    .result-block {
-      margin-top: 1.5rem;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      overflow: hidden;
-      display: none;
-    }
-    .result-header {
-      background: #f1f5f9;
-      padding: 0.75rem 1rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      cursor: pointer;
-      user-select: none;
-    }
-    .result-header h3 { margin: 0; color: #555; font-size: 0.9rem; }
-    .result-header .arrow { font-size: 0.75rem; color: #888; }
-    .result-body {
-      background: #f8fafc;
-      padding: 1rem;
-      text-align: right;
-      display: none;
-    }
-    .result-body pre {
-      margin: 0;
-      font-size: 1rem;
-      line-height: 1.6;
-      white-space: pre-wrap;
-      font-family: Arial, sans-serif;
-    }
-    .downloads { margin-top: 0.75rem; text-align: left; }
     .divider { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
     textarea {
       width: 100%;
@@ -147,52 +115,6 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
       display: none;
     }
-    #srtSegmentsContainer {
-      max-height: 350px;
-      overflow-y: auto;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      padding: 4px;
-      margin-bottom: 0.5rem;
-    }
-    .srt-segment {
-      padding: 5px 10px;
-      margin: 2px 0;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background 0.15s;
-      font-family: Arial, sans-serif;
-      font-size: 0.95rem;
-      line-height: 1.5;
-      direction: rtl;
-      text-align: right;
-    }
-    .srt-segment:hover { background: #f1f5f9; }
-    .srt-segment.active {
-      background: #fff3cd;
-      border-right: 4px solid #f5a623;
-      font-weight: bold;
-    }
-    .srt-time {
-      font-size: 0.75rem;
-      color: #aaa;
-      font-family: monospace;
-      direction: ltr;
-      display: inline-block;
-      margin-left: 0.5rem;
-    }
-    #claudeResult {
-      margin-top: 1rem;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 1rem;
-      text-align: right;
-      white-space: pre-wrap;
-      font-size: 1rem;
-      line-height: 1.6;
-      display: none;
-    }
     #recentAudioSection { margin-top: 0.5rem; }
     #recentAudioSection h4 { font-size: 0.85rem; color: #888; margin: 0 0 0.3rem; text-align: right; }
     .recent-audio-item {
@@ -207,18 +129,14 @@
     .recent-audio-date { font-size: 0.78rem; color: #aaa; flex-shrink: 0; }
     .recent-audio-remove { font-size: 0.75rem; color: #ccc; cursor: pointer; padding: 0 0.2rem; margin-right: 0.3rem; }
     .recent-audio-remove:hover { color: #ef4444; }
-    .tab-btn {
-      padding: 0.5rem 1.2rem;
-      border: none;
-      background: none;
-      cursor: pointer;
-      font-size: 0.95rem;
-      color: #888;
-      border-bottom: 3px solid transparent;
-      transition: color 0.15s, border-color 0.15s;
+    .srt-time {
+      font-size: 0.75rem;
+      color: #aaa;
+      font-family: monospace;
+      direction: ltr;
+      display: inline-block;
+      margin-left: 0.5rem;
     }
-    .tab-btn.tab-active { color: #2563eb; border-bottom-color: #2563eb; font-weight: bold; }
-    .card.wide { max-width: 960px; }
     .parallel-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -236,16 +154,39 @@
     }
     .parallel-seg.active { background: #fff3cd; border-color: #f5a623; border-width: 2px; }
     .parallel-verse-cell { min-height: 1px; }
+    .topics-toc {
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1rem;
+      text-align: right;
+    }
+    .topics-toc-title {
+      font-weight: bold;
+      color: #166534;
+      margin-bottom: 0.5rem;
+      font-size: 0.95rem;
+    }
+    .topic-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.3rem 0.5rem;
+      border-radius: 5px;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .topic-item:hover { background: #dcfce7; }
+    .topic-item-title { color: #1e293b; }
+    .topic-item-time { font-family: monospace; font-size: 0.8rem; color: #888; direction: ltr; }
   </style>
 </head>
 <body>
   <div id="stickyPlayer"><audio id="srtPlayer" controls style="width:100%;"></audio></div>
   <div class="card">
     <h1>תמלול עברית</h1>
-    <div style="display:flex;border-bottom:2px solid #e2e8f0;margin-bottom:1rem;">
-      <button id="tabClassic" class="tab-btn tab-active" onclick="switchTab('classic')">תצוגה רגילה</button>
-      <button id="tabParallel" class="tab-btn" onclick="switchTab('parallel')">תצוגה מקבילה</button>
-    </div>
     <input type="file" id="audioFile" accept="audio/*,video/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,.opus,.wma,.mp4,.mov,.avi,.mkv,.webm">
     <div id="recentAudioSection" style="display:none;">
       <div id="recentAudioList"></div>
@@ -253,105 +194,47 @@
     <button class="btn-primary" id="btn" onclick="transcribe()">תמלל</button>
     <div id="status"></div>
 
-    <div id="classicView">
-    <div class="result-block" id="textBlock" style="display:block;">
-      <div class="result-header" onclick="toggle('textBody', 'textArrow')">
-        <h3>טקסט</h3>
-        <span class="arrow" id="textArrow">▼</span>
-      </div>
-      <div class="result-body" id="textBody">
-        <textarea id="textResult" style="width:100%;min-height:120px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-size:1rem;font-family:Arial,sans-serif;resize:vertical;box-sizing:border-box;" placeholder="הדבק טקסט כאן או תמלל קובץ..."></textarea>
-        <div class="downloads">
-          <button class="btn-download" onclick="download('text')">הורד TXT</button>
-          <button class="btn-download" id="versesBtn" onclick="findVerses()" style="background:#7c3aed;">זיהוי פסוקים ברצף</button>
-        </div>
-        <div id="versesResult" style="display:none;margin-top:1rem;"></div>
-      </div>
+    <div style="margin-top:1rem;margin-bottom:1rem;text-align:right;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">
+      <button class="btn-download" id="parallelVersesBtn" onclick="findVersesParallel()" style="background:#7c3aed;">זיהוי פסוקים</button>
+      <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;color:#555;cursor:pointer;user-select:none;">
+        <input type="checkbox" id="includeTopics" style="cursor:pointer;"> כלול נושאים
+      </label>
+      <span id="parallelStatus" style="font-size:0.85rem;color:#888;"></span>
     </div>
-
-    <div class="result-block" id="srtBlock">
-      <div class="result-header" onclick="toggle('srtBody', 'srtArrow')">
-        <h3>כתוביות SRT</h3>
-        <span class="arrow" id="srtArrow">▼</span>
-      </div>
-      <div class="result-body" id="srtBody">
-        <div id="srtSegmentsContainer" style="display:none;"></div>
-        <pre id="srtResult" style="display:none;"></pre>
-        <div class="downloads">
-          <button class="btn-download" onclick="download('srt')">הורד SRT</button>
-          <button class="btn-download" id="srtVersesBtn" onclick="findVersesSrt()" style="background:#7c3aed;">זיהוי פסוקים ברצף</button>
-        </div>
-        <div id="srtVersesResult" style="display:none;margin-top:1rem;"></div>
-      </div>
-    </div>
+    <div id="parallelResult"></div>
 
     <div style="margin-top:0.75rem;text-align:right;">
-      <button class="btn-download" style="background:#64748b;" onclick="toggleManualSrt()">הדבק SRT ידנית</button>
-      <div id="manualSrtArea" style="display:none;margin-top:0.5rem;">
+      <button class="btn-download" style="background:#64748b;" onclick="toggleManualSrtParallel()">הדבק SRT ידנית</button>
+      <div id="manualSrtAreaParallel" style="display:none;margin-top:0.5rem;">
         <div style="margin-bottom:0.4rem;text-align:left;">
-          <input type="file" id="manualSrtFile" accept=".srt,text/plain" style="font-size:0.85rem;">
+          <input type="file" id="manualSrtFileParallel" accept=".srt,text/plain" style="font-size:0.85rem;">
         </div>
-        <textarea id="manualSrtInput" placeholder="הדבק כאן SRT..." style="width:100%;min-height:120px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;font-family:monospace;direction:ltr;resize:vertical;box-sizing:border-box;"></textarea>
-        <button class="btn-primary" style="margin-top:0.4rem;" onclick="loadManualSrt()">טען SRT</button>
+        <textarea id="manualSrtInputParallel" placeholder="הדבק כאן SRT..." style="width:100%;min-height:120px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;font-family:monospace;direction:ltr;resize:vertical;box-sizing:border-box;"></textarea>
+        <button class="btn-primary" style="margin-top:0.4rem;" onclick="loadManualSrtParallel()">טען SRT</button>
       </div>
     </div>
 
     <hr class="divider">
     <h2 style="color:#333;margin-bottom:1rem;">זיהוי פסוקים ברצף</h2>
-    <textarea id="manualInput" placeholder="הדבק כאן טקסט או SRT לזיהוי פסוקים ברצף..."></textarea>
-    <button class="btn-primary" id="manualVersesBtn" onclick="findVersesManual()" style="background:#7c3aed;">זיהוי פסוקים ברצף</button>
-    <div id="manualVersesResult" style="display:none;margin-top:1rem;"></div>
-
-    </div><!-- end classicView -->
-
-    <div id="parallelView" style="display:none;">
-      <div style="margin-bottom:1rem;text-align:right;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">
-        <button class="btn-download" id="parallelVersesBtn" onclick="findVersesParallel()" style="background:#7c3aed;">זיהוי פסוקים</button>
-        <span id="parallelStatus" style="font-size:0.85rem;color:#888;"></span>
-      </div>
-      <div id="parallelResult"></div>
-
-      <div style="margin-top:0.75rem;text-align:right;">
-        <button class="btn-download" style="background:#64748b;" onclick="toggleManualSrtParallel()">הדבק SRT ידנית</button>
-        <div id="manualSrtAreaParallel" style="display:none;margin-top:0.5rem;">
-          <div style="margin-bottom:0.4rem;text-align:left;">
-            <input type="file" id="manualSrtFileParallel" accept=".srt,text/plain" style="font-size:0.85rem;">
-          </div>
-          <textarea id="manualSrtInputParallel" placeholder="הדבק כאן SRT..." style="width:100%;min-height:120px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;font-family:monospace;direction:ltr;resize:vertical;box-sizing:border-box;"></textarea>
-          <button class="btn-primary" style="margin-top:0.4rem;" onclick="loadManualSrtParallel()">טען SRT</button>
-        </div>
-      </div>
-
-      <hr class="divider">
-      <h2 style="color:#333;margin-bottom:1rem;">זיהוי פסוקים ברצף</h2>
-      <textarea id="manualInputParallel" placeholder="הדבק כאן טקסט או SRT לזיהוי פסוקים ברצף..."></textarea>
+    <textarea id="manualInputParallel" placeholder="הדבק כאן טקסט או SRT לזיהוי פסוקים ברצף..."></textarea>
+    <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
       <button class="btn-primary" id="manualVersesBtnParallel" onclick="findVersesManualParallel()" style="background:#7c3aed;">זיהוי פסוקים ברצף</button>
-      <div id="manualVersesResultParallel" style="display:none;margin-top:1rem;"></div>
-
-      <div style="margin-top:0.75rem;text-align:right;display:flex;flex-wrap:wrap;gap:0.5rem;justify-content:flex-end;">
-        <button class="btn-download" style="background:#64748b;" onclick="toggleManualVersesParallel()">הדבק מיפוי פסוקים ידנית</button>
-        <button id="btnClearCurrentP" class="btn-download" style="background:#dc2626;display:none;" onclick="clearCurrentCache()">נקה קאש לקובץ זה</button>
-        <button id="btnClearAllP" class="btn-download" style="background:#7f1d1d;display:none;" onclick="clearAllCache()">נקה כל הקאש</button>
-        <div id="manualVersesAreaParallel" style="display:none;margin-top:0.5rem;width:100%;">
-          <div style="margin-bottom:0.4rem;text-align:left;">
-            <input type="file" id="manualVersesFileParallel" accept=".json,.srt,text/plain" style="font-size:0.85rem;">
-          </div>
-          <textarea id="manualVersesInputParallel" placeholder='הדבק כאן JSON של מיפוי פסוקים...' style="width:100%;min-height:120px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;font-family:monospace;direction:ltr;resize:vertical;box-sizing:border-box;"></textarea>
-          <button class="btn-primary" style="margin-top:0.4rem;" onclick="loadManualVersesParallel()">טען מיפוי</button>
-        </div>
-      </div>
+      <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;color:#555;cursor:pointer;user-select:none;">
+        <input type="checkbox" id="includeTopicsManual" style="cursor:pointer;"> כלול נושאים
+      </label>
     </div>
+    <div id="manualVersesResultParallel" style="display:none;margin-top:1rem;"></div>
 
-    <div style="margin-top:0.75rem;text-align:right;display:flex;flex-wrap:wrap;gap:0.5rem;justify-content:flex-end;" id="sharedCacheSection">
-      <button class="btn-download" style="background:#64748b;" onclick="toggleManualVerses()">הדבק מיפוי פסוקים ידנית</button>
+    <div style="margin-top:0.75rem;text-align:right;display:flex;flex-wrap:wrap;gap:0.5rem;justify-content:flex-end;">
+      <button class="btn-download" style="background:#64748b;" onclick="toggleManualVersesParallel()">הדבק מיפוי פסוקים ידנית</button>
       <button id="btnClearCurrent" class="btn-download" style="background:#dc2626;display:none;" onclick="clearCurrentCache()">נקה קאש לקובץ זה</button>
       <button id="btnClearAll" class="btn-download" style="background:#7f1d1d;display:none;" onclick="clearAllCache()">נקה כל הקאש</button>
-      <div id="manualVersesArea" style="display:none;margin-top:0.5rem;width:100%;">
+      <div id="manualVersesAreaParallel" style="display:none;margin-top:0.5rem;width:100%;">
         <div style="margin-bottom:0.4rem;text-align:left;">
-          <input type="file" id="manualVersesFile" accept=".json,.srt,text/plain" style="font-size:0.85rem;">
+          <input type="file" id="manualVersesFileParallel" accept=".json,.srt,text/plain" style="font-size:0.85rem;">
         </div>
-        <textarea id="manualVersesInput" placeholder='הדבק כאן JSON של מיפוי פסוקים...' style="width:100%;min-height:120px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;font-family:monospace;direction:ltr;resize:vertical;box-sizing:border-box;"></textarea>
-        <button class="btn-primary" style="margin-top:0.4rem;" onclick="loadManualVerses()">טען מיפוי</button>
+        <textarea id="manualVersesInputParallel" placeholder='הדבק כאן JSON של מיפוי פסוקים...' style="width:100%;min-height:120px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;font-family:monospace;direction:ltr;resize:vertical;box-sizing:border-box;"></textarea>
+        <button class="btn-primary" style="margin-top:0.4rem;" onclick="loadManualVersesParallel()">טען מיפוי</button>
       </div>
     </div>
   </div>
@@ -359,9 +242,10 @@
   <script>
     let lastData = {};
     let lastVersesData = [];
+    let lastTopicsData = [];
     let selectedAudioFile = null;
-    updateCacheButtons();
     let srtSegments = [];
+    updateCacheButtons();
 
     document.getElementById('audioFile').addEventListener('change', async function () {
       const file = this.files[0];
@@ -463,17 +347,6 @@
       lastData = {};
       lastVersesData = [];
       srtSegments = [];
-      document.getElementById('textResult').value = '';
-      document.getElementById('textBlock').style.display = 'block';
-      document.getElementById('textBody').style.display = 'none';
-      document.getElementById('textArrow').textContent = '▼';
-      document.getElementById('srtResult').textContent = '';
-      document.getElementById('srtBlock').style.display = 'none';
-      document.getElementById('srtSegmentsContainer').style.display = 'none';
-      document.getElementById('srtSegmentsContainer').innerHTML = '';
-      document.getElementById('versesResult').style.display = 'none';
-      document.getElementById('manualVersesResult').style.display = 'none';
-      document.getElementById('srtVersesResult').style.display = 'none';
       const pr = document.getElementById('parallelResult');
       pr.innerHTML = '';
       pr.style.display = 'none';
@@ -489,20 +362,12 @@
       const savedSrt = localStorage.getItem(`srtData_${fileKey}`);
       if (savedSrt) {
         lastData.srt = savedSrt;
-        document.getElementById('srtResult').textContent = savedSrt;
         srtSegments = parseSrt(savedSrt);
-        renderSrtSegments(srtSegments);
-        document.getElementById('srtBlock').style.display = 'block';
-        document.getElementById('srtBody').style.display = 'block';
-        document.getElementById('srtArrow').textContent = '▲';
       }
       const savedVerses = localStorage.getItem(`verseMapping_${fileKey}`);
-      if (savedVerses) {
+      if (savedVerses && srtSegments.length) {
         const versesData = { verses: JSON.parse(savedVerses), complete: true };
-        renderVerses(versesData, document.getElementById('manualVersesResult'));
-        if (srtSegments.length) {
-          renderParallelVerses(versesData);
-        }
+        renderParallelVerses(versesData);
       }
       updateCacheButtons();
       renderRecentAudioList();
@@ -565,8 +430,31 @@
       a.click();
     }
 
+    function generateTopicsSrt(topics) {
+      const withTime = topics.filter(t => t.startTime);
+      if (!withTime.length) return '';
+      const lastEnd = lastSrtEndTime();
+      return withTime.map((t, i) => {
+        const start = msToSrtTime(srtTimeToMs(t.startTime));
+        const end = i < withTime.length - 1
+          ? msToSrtTime(srtTimeToMs(withTime[i + 1].startTime))
+          : lastEnd !== null ? msToSrtTime(lastEnd) : msToSrtTime(srtTimeToMs(t.startTime) + 300000);
+        return `${i + 1}\n${start} --> ${end}\n${t.title}`;
+      }).join('\n\n');
+    }
+
+    function downloadTopicsSrt() {
+      const srt = generateTopicsSrt(lastTopicsData);
+      if (!srt) return;
+      const blob = new Blob([srt], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'topics.srt';
+      a.click();
+    }
+
     function renderVerses(data, container) {
-if (data.error) {
+      if (data.error) {
         container.textContent = 'שגיאה: ' + data.error;
         container.style.display = 'block';
         return;
@@ -584,6 +472,24 @@ if (data.error) {
       const range = first === last ? first : `${first} — ${last}`;
       let html = `<div class="verse-status">${complete ? '✅ הרצף שלם' : '⚠️ יש חורים ברצף'}</div>`;
       if (range) html += `<div style="text-align:right;margin-bottom:0.75rem;font-size:0.9rem;color:#555;">טווח: <strong>${escHtml(range)}</strong></div>`;
+      const topicsWithTime = (data.topics || []).filter(t => t.startTime);
+      if (data.topics?.length) {
+        const hasTopicTimes = topicsWithTime.length > 0;
+        html += `<div class="topics-toc">`;
+        html += `<div class="topics-toc-title">📋 תוכן עניינים</div>`;
+        for (let i = 0; i < data.topics.length; i++) {
+          const t = data.topics[i];
+          const sec = t.startTime ? srtTimeSec(t.startTime + ',000') : null;
+          html += `<div class="topic-item"${sec !== null ? ` data-start="${sec}"` : ''}>`;
+          html += `<span class="topic-item-title"><span style="color:#86efac;margin-left:0.4rem;">${i + 1}.</span>${escHtml(t.title)}</span>`;
+          if (t.startTime) html += `<span class="topic-item-time">${escHtml(t.startTime)}</span>`;
+          html += `</div>`;
+        }
+        if (hasTopicTimes) {
+          html += `<div style="margin-top:0.5rem;text-align:left;"><button class="btn-download" style="background:#166534;" onclick="downloadTopicsSrt()">הורד SRT נושאים</button></div>`;
+        }
+        html += `</div>`;
+      }
       if (detected.some(v => v.startTime)) {
         html += `<div style="text-align:left;margin-bottom:0.75rem;"><button class="btn-download" onclick="downloadVerseSrt()">הורד SRT פסוקים</button></div>`;
       }
@@ -619,14 +525,15 @@ if (data.error) {
       }
       container.innerHTML = html;
       container.style.display = 'block';
-      container.querySelectorAll('.verse-card[data-start]').forEach(card => {
-        card.style.cursor = 'pointer';
-        card.addEventListener('click', () => {
+      container.querySelectorAll('.verse-card[data-start], .topic-item[data-start]').forEach(el => {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => {
           const audio = document.getElementById('srtPlayer');
-          audio.currentTime = parseFloat(card.dataset.start);
+          audio.currentTime = parseFloat(el.dataset.start);
           audio.play();
         });
       });
+      if (data.topics?.length) lastTopicsData = data.topics;
     }
 
     function parseSrt(srtText) {
@@ -657,25 +564,6 @@ if (data.error) {
       return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     }
 
-    function renderSrtSegments(segments) {
-      const container = document.getElementById('srtSegmentsContainer');
-      container.innerHTML = '';
-      segments.forEach(seg => {
-        const div = document.createElement('div');
-        div.className = 'srt-segment';
-        div.dataset.start = seg.start;
-        div.dataset.end = seg.end;
-        div.innerHTML = `<span class="srt-time">${fmtSec(seg.start)}</span>${escHtml(seg.text)}`;
-        div.addEventListener('click', () => {
-          const audio = document.getElementById('srtPlayer');
-          audio.currentTime = seg.start;
-          audio.play();
-        });
-        container.appendChild(div);
-      });
-      container.style.display = 'block';
-    }
-
     function setupAudioPlayer(file) {
       const audio = document.getElementById('srtPlayer');
       if (audio._blobUrl) URL.revokeObjectURL(audio._blobUrl);
@@ -685,21 +573,6 @@ if (data.error) {
       document.body.style.paddingTop = '60px';
       audio.ontimeupdate = () => {
         const t = audio.currentTime;
-        const container = document.getElementById('srtSegmentsContainer');
-        let activeEl = null;
-        container.querySelectorAll('.srt-segment').forEach(div => {
-          const start = parseFloat(div.dataset.start);
-          const end = parseFloat(div.dataset.end);
-          if (t >= start && t < end) {
-            div.classList.add('active');
-            activeEl = div;
-          } else {
-            div.classList.remove('active');
-          }
-        });
-        if (activeEl) activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-
-        // highlight active verse card
         const verseCards = [...document.querySelectorAll('.verse-card[data-start]')];
         verseCards.forEach(c => c.classList.remove('active'));
         let activeVerse = null;
@@ -713,46 +586,29 @@ if (data.error) {
       };
     }
 
-    document.getElementById('manualSrtFile').addEventListener('change', function () {
+    document.getElementById('manualSrtFileParallel').addEventListener('change', function () {
       const file = this.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = e => { document.getElementById('manualSrtInput').value = e.target.result; };
+      reader.onload = e => { document.getElementById('manualSrtInputParallel').value = e.target.result; };
       reader.readAsText(file, 'utf-8');
     });
 
-    function toggleManualSrt() {
-      const area = document.getElementById('manualSrtArea');
+    document.getElementById('manualVersesFileParallel').addEventListener('change', function () {
+      const file = this.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => { document.getElementById('manualVersesInputParallel').value = e.target.result; };
+      reader.readAsText(file, 'utf-8');
+    });
+
+    function toggleManualSrtParallel() {
+      const area = document.getElementById('manualSrtAreaParallel');
       area.style.display = area.style.display === 'none' ? 'block' : 'none';
     }
 
-    function loadManualSrt() {
-      const srtText = document.getElementById('manualSrtInput').value.trim();
-      if (!srtText) { alert('הדבק SRT תחילה'); return; }
-      lastData.srt = srtText;
-      document.getElementById('srtResult').textContent = srtText;
-      srtSegments = parseSrt(srtText);
-      if (!srtSegments.length) { alert('לא זוהו segments ב-SRT'); return; }
-      renderSrtSegments(srtSegments);
-      if (selectedAudioFile) {
-        localStorage.setItem(`srtData_${selectedAudioFile.name}_${selectedAudioFile.size}`, srtText);
-      }
-      document.getElementById('srtBlock').style.display = 'block';
-      document.getElementById('srtBody').style.display = 'block';
-      document.getElementById('srtArrow').textContent = '▲';
-      document.getElementById('manualSrtArea').style.display = 'none';
-    }
-
-    document.getElementById('manualVersesFile').addEventListener('change', function () {
-      const file = this.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = e => { document.getElementById('manualVersesInput').value = e.target.result; };
-      reader.readAsText(file, 'utf-8');
-    });
-
-    function toggleManualVerses() {
-      const area = document.getElementById('manualVersesArea');
+    function toggleManualVersesParallel() {
+      const area = document.getElementById('manualVersesAreaParallel');
       area.style.display = area.style.display === 'none' ? 'block' : 'none';
     }
 
@@ -762,12 +618,8 @@ if (data.error) {
         const fk = `${selectedAudioFile.name}_${selectedAudioFile.size}`;
         return localStorage.getItem(`verseMapping_${fk}`) !== null || localStorage.getItem(`srtData_${fk}`) !== null;
       })();
-      for (const id of ['btnClearCurrent', 'btnClearCurrentP']) {
-        document.getElementById(id).style.display = hasCurrent ? '' : 'none';
-      }
-      for (const id of ['btnClearAll', 'btnClearAllP']) {
-        document.getElementById(id).style.display = hasAll ? '' : 'none';
-      }
+      document.getElementById('btnClearCurrent').style.display = hasCurrent ? '' : 'none';
+      document.getElementById('btnClearAll').style.display = hasAll ? '' : 'none';
     }
 
     function clearCurrentCache() {
@@ -775,7 +627,6 @@ if (data.error) {
       const fileKey = `${selectedAudioFile.name}_${selectedAudioFile.size}`;
       localStorage.removeItem(`verseMapping_${fileKey}`);
       localStorage.removeItem(`srtData_${fileKey}`);
-      document.getElementById('manualVersesResult').style.display = 'none';
       document.getElementById('manualVersesResultParallel').style.display = 'none';
       updateCacheButtons();
     }
@@ -784,17 +635,47 @@ if (data.error) {
       Object.keys(localStorage)
         .filter(k => k.startsWith('verseMapping_') || k.startsWith('srtData_'))
         .forEach(k => localStorage.removeItem(k));
-      document.getElementById('manualVersesResult').style.display = 'none';
       document.getElementById('manualVersesResultParallel').style.display = 'none';
       updateCacheButtons();
     }
 
-    function loadManualVerses() {
-      const raw = document.getElementById('manualVersesInput').value.trim();
+    function loadManualSrtParallel() {
+      const srtText = document.getElementById('manualSrtInputParallel').value.trim();
+      if (!srtText) { alert('הדבק SRT תחילה'); return; }
+      lastData.srt = srtText;
+      srtSegments = parseSrt(srtText);
+      if (!srtSegments.length) { alert('לא זוהו segments ב-SRT'); return; }
+      if (selectedAudioFile) {
+        localStorage.setItem(`srtData_${selectedAudioFile.name}_${selectedAudioFile.size}`, srtText);
+      }
+      document.getElementById('manualSrtAreaParallel').style.display = 'none';
+      if (lastVersesData.length) renderParallelVerses({ verses: lastVersesData });
+    }
+
+    async function findVersesManualParallel() {
+      const text = document.getElementById('manualInputParallel').value.trim();
+      if (!text) { alert('הדבק טקסט'); return; }
+      const btn = document.getElementById('manualVersesBtnParallel');
+      const result = document.getElementById('manualVersesResultParallel');
+      const includeTopics = document.getElementById('includeTopicsManual').checked;
+      btn.disabled = true; btn.textContent = 'מחפש...';
+      result.style.display = 'none';
+      try {
+        const data = await callFindVerses(text, includeTopics);
+        renderVerses(data, result);
+      } catch (e) {
+        result.textContent = 'שגיאת רשת: ' + e.message;
+        result.style.display = 'block';
+      } finally {
+        btn.disabled = false; btn.textContent = 'זיהוי פסוקים ברצף';
+      }
+    }
+
+    function loadManualVersesParallel() {
+      const raw = document.getElementById('manualVersesInputParallel').value.trim();
       if (!raw) { alert('הדבק JSON או SRT תחילה'); return; }
       let data;
       if (raw.includes('-->')) {
-        // verses SRT format
         const segs = parseSrt(raw);
         if (!segs.length) { alert('לא זוהו ערכים ב-SRT'); return; }
         const verses = segs.map(s => ({
@@ -803,16 +684,11 @@ if (data.error) {
         }));
         data = { verses, complete: true };
       } else {
-        try {
-          data = JSON.parse(raw);
-        } catch (e) {
-          alert('JSON לא תקין: ' + e.message);
-          return;
-        }
+        try { data = JSON.parse(raw); } catch (e) { alert('JSON לא תקין: ' + e.message); return; }
         if (Array.isArray(data)) data = { verses: data, complete: true };
         if (!data.verses) { alert('לא נמצא שדה "verses" ב-JSON'); return; }
       }
-      const container = document.getElementById('manualVersesResult');
+      const container = document.getElementById('manualVersesResultParallel');
       renderVerses(data, container);
       if (selectedAudioFile && data.verses?.length) {
         const key = `verseMapping_${selectedAudioFile.name}_${selectedAudioFile.size}`;
@@ -820,17 +696,139 @@ if (data.error) {
         updateCacheButtons();
       }
       container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      document.getElementById('manualVersesArea').style.display = 'none';
+      document.getElementById('manualVersesAreaParallel').style.display = 'none';
+    }
+
+    async function callFindVerses(text, includeTopics = false) {
+      const res = await fetch('/find-verses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, includeTopics }),
+      });
+      return res.json();
+    }
+
+    async function findVersesParallel() {
+      const text = lastData.srt || '';
+      if (!text) { alert('אין SRT — תמלל קובץ או הדבק SRT תחילה'); return; }
+      const btn = document.getElementById('parallelVersesBtn');
+      const status = document.getElementById('parallelStatus');
+      const includeTopics = document.getElementById('includeTopics').checked;
+      btn.disabled = true; btn.textContent = 'מחפש...';
+      status.textContent = '';
+      try {
+        const data = await callFindVerses(text, includeTopics);
+        renderParallelVerses(data);
+      } catch (e) {
+        status.textContent = 'שגיאה: ' + e.message;
+      } finally {
+        btn.disabled = false; btn.textContent = 'זיהוי פסוקים';
+      }
+    }
+
+    function renderParallelVerses(versesData) {
+      const container = document.getElementById('parallelResult');
+      if (versesData.error) {
+        container.textContent = 'שגיאה: ' + versesData.error;
+        container.style.display = 'block';
+        return;
+      }
+      const { verses = [], complete } = versesData;
+      if (verses.length) lastVersesData = verses;
+
+      if (!srtSegments?.length) {
+        container.textContent = 'אין נתוני SRT — תמלל קובץ או הדבק SRT תחילה';
+        container.style.display = 'block';
+        return;
+      }
+
+      const bySubtitle = {};
+      for (const v of verses) {
+        if (!v.missing && v.subtitleNum) bySubtitle[v.subtitleNum] = v;
+      }
+      const byTime = {};
+      for (const v of verses) {
+        if (!v.missing && !v.subtitleNum && v.startTime) {
+          const sec = srtTimeSec(v.startTime + ',000');
+          let closest = null, minDiff = Infinity;
+          for (const s of srtSegments) {
+            const diff = Math.abs(s.start - sec);
+            if (diff < minDiff) { minDiff = diff; closest = s.id; }
+          }
+          if (closest !== null && minDiff < 5) byTime[closest] = v;
+        }
+      }
+
+      if (versesData.topics?.length) lastTopicsData = versesData.topics;
+
+      let html = `<div style="margin-bottom:0.75rem;font-size:0.9rem;color:#555;">${complete ? '✅ הרצף שלם' : '⚠️ יש חורים ברצף'}</div>`;
+
+      if (versesData.topics?.length) {
+        const hasTopicTimes = versesData.topics.some(t => t.startTime);
+        html += `<div class="topics-toc">`;
+        html += `<div class="topics-toc-title">📋 תוכן עניינים</div>`;
+        for (let i = 0; i < versesData.topics.length; i++) {
+          const t = versesData.topics[i];
+          const sec = t.startTime ? srtTimeSec(t.startTime + ',000') : null;
+          html += `<div class="topic-item"${sec !== null ? ` data-start="${sec}"` : ''}>`;
+          html += `<span class="topic-item-title"><span style="color:#86efac;margin-left:0.4rem;">${i + 1}.</span>${escHtml(t.title)}</span>`;
+          if (t.startTime) html += `<span class="topic-item-time">${escHtml(t.startTime)}</span>`;
+          html += `</div>`;
+        }
+        if (hasTopicTimes) {
+          html += `<div style="margin-top:0.5rem;text-align:left;"><button class="btn-download" style="background:#166534;" onclick="downloadTopicsSrt()">הורד SRT נושאים</button></div>`;
+        }
+        html += `</div>`;
+      }
+
+      html += `<div class="parallel-grid">`;
+      for (const seg of srtSegments) {
+        const verse = bySubtitle[seg.id] ?? byTime[seg.id];
+        html += `<div class="parallel-seg" data-start="${seg.start}" data-end="${seg.end}">`;
+        html += `<span class="srt-time">${fmtSec(seg.start)}</span> ${escHtml(seg.text)}`;
+        html += `</div>`;
+        html += `<div class="parallel-verse-cell">`;
+        if (verse) {
+          const sec = verse.startTime ? srtTimeSec(verse.startTime + ',000') : null;
+          html += `<div class="verse-card"${sec !== null ? ` data-start="${sec}"` : ''}>`;
+          html += `<div class="verse-header">`;
+          html += `<span class="verse-name">${escHtml(verse.verse)}</span>`;
+          if (verse.startTime) html += `<span class="verse-time">${escHtml(verse.startTime)}</span>`;
+          html += `</div>`;
+          if (verse.verseText) html += `<div class="verse-original">${escHtml(verse.verseText)}</div>`;
+          html += `</div>`;
+        }
+        html += `</div>`;
+      }
+      html += `</div>`;
+
+      container.innerHTML = html;
+      container.style.display = 'block';
+
+      container.querySelectorAll('.verse-card[data-start], .topic-item[data-start]').forEach(el => {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => {
+          const audio = document.getElementById('srtPlayer');
+          audio.currentTime = parseFloat(el.dataset.start);
+          audio.play();
+        });
+      });
+
+      document.getElementById('srtPlayer').addEventListener('timeupdate', function () {
+        const t = this.currentTime;
+        container.querySelectorAll('.parallel-seg[data-start]').forEach(div => {
+          const s = parseFloat(div.dataset.start), e = parseFloat(div.dataset.end);
+          div.classList.toggle('active', t >= s && t < e);
+        });
+      });
     }
 
     async function transcribe() {
-      const file = document.getElementById('audioFile').files[0];
+      const file = document.getElementById('audioFile').files[0] || selectedAudioFile;
       if (!file) { alert('בחר קובץ אודיו'); return; }
 
       const btn = document.getElementById('btn');
       const status = document.getElementById('status');
-      document.getElementById('textBlock').style.display = 'none';
-      document.getElementById('srtBlock').style.display = 'none';
 
       btn.disabled = true;
       status.textContent = 'מעלה קובץ...';
@@ -876,18 +874,11 @@ if (data.error) {
 
           if (data.status === 'COMPLETED') {
             lastData = data;
-            document.getElementById('textResult').value = data.text;
-            document.getElementById('textBlock').style.display = 'block';
             if (data.srt) {
-              document.getElementById('srtResult').textContent = data.srt;
-              document.getElementById('srtBlock').style.display = 'block';
               srtSegments = parseSrt(data.srt);
-              renderSrtSegments(srtSegments);
-              if (selectedAudioFile) setupAudioPlayer(selectedAudioFile);
-              document.getElementById('srtBody').style.display = 'block';
-              document.getElementById('srtArrow').textContent = '▲';
               if (selectedAudioFile) {
                 localStorage.setItem(`srtData_${selectedAudioFile.name}_${selectedAudioFile.size}`, data.srt);
+                setupAudioPlayer(selectedAudioFile);
               }
             }
             status.textContent = '';
@@ -898,328 +889,6 @@ if (data.error) {
           return;
         }
       }
-    }
-
-    function toggle(bodyId, arrowId) {
-      const body = document.getElementById(bodyId);
-      const arrow = document.getElementById(arrowId);
-      const open = body.style.display === 'block';
-      body.style.display = open ? 'none' : 'block';
-      arrow.textContent = open ? '▼' : '▲';
-    }
-
-    async function findVerses() {
-      const text = document.getElementById('textResult').value.trim();
-      if (!text) { alert('אין טקסט'); return; }
-
-      const btn = document.getElementById('versesBtn');
-      const result = document.getElementById('versesResult');
-
-      btn.disabled = true;
-      btn.textContent = 'מחפש...';
-      result.style.display = 'none';
-
-      try {
-        const data = await callFindVerses(text);
-        renderVerses(data, result);
-      } catch (e) {
-        result.textContent = 'שגיאת רשת: ' + e.message;
-        result.style.display = 'block';
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'זיהוי פסוקים ברצף';
-      }
-    }
-
-    async function findVersesSrt() {
-      const text = document.getElementById('srtResult').textContent.trim();
-      if (!text) { alert('אין כתוביות SRT'); return; }
-
-      const btn = document.getElementById('srtVersesBtn');
-      const result = document.getElementById('srtVersesResult');
-
-      btn.disabled = true;
-      btn.textContent = 'מחפש...';
-      result.style.display = 'none';
-
-      try {
-        const data = await callFindVerses(text);
-        renderVerses(data, result);
-      } catch (e) {
-        result.textContent = 'שגיאת רשת: ' + e.message;
-        result.style.display = 'block';
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'זיהוי פסוקים ברצף';
-      }
-    }
-
-    async function findVersesManual() {
-      const text = document.getElementById('manualInput').value.trim();
-      if (!text) { alert('הדבק טקסט'); return; }
-
-      const btn = document.getElementById('manualVersesBtn');
-      const result = document.getElementById('manualVersesResult');
-
-      btn.disabled = true;
-      btn.textContent = 'מחפש...';
-      result.style.display = 'none';
-
-      try {
-        const data = await callFindVerses(text);
-        renderVerses(data, result);
-      } catch (e) {
-        result.textContent = 'שגיאת רשת: ' + e.message;
-        result.style.display = 'block';
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'זיהוי פסוקים ברצף';
-      }
-    }
-
-    async function sendToClaude() {
-      const text = document.getElementById('claudeInput').value.trim();
-      if (!text) { alert('הזן טקסט'); return; }
-
-      const btn = document.getElementById('claudeBtn');
-      const status = document.getElementById('claudeStatus');
-      const result = document.getElementById('claudeResult');
-
-      btn.disabled = true;
-      status.textContent = 'שולח לקלוד...';
-      result.style.display = 'none';
-
-      try {
-        const res = await fetch('/claude', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text }),
-        });
-        const data = await res.json();
-        if (!res.ok || data.error) {
-          status.textContent = 'שגיאה: ' + JSON.stringify(data.error ?? data);
-          return;
-        }
-        result.textContent = data.result;
-        result.style.display = 'block';
-        status.textContent = '';
-      } catch (e) {
-        status.textContent = 'שגיאת רשת: ' + e.message;
-      } finally {
-        btn.disabled = false;
-      }
-    }
-
-    function download(type) {
-      const content = type === 'srt' ? lastData.srt : document.getElementById('textResult').value;
-      const ext = type === 'srt' ? 'srt' : 'txt';
-      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `transcription.${ext}`;
-      a.click();
-    }
-
-    document.getElementById('manualSrtFileParallel').addEventListener('change', function () {
-      const file = this.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = e => { document.getElementById('manualSrtInputParallel').value = e.target.result; };
-      reader.readAsText(file, 'utf-8');
-    });
-
-    document.getElementById('manualVersesFileParallel').addEventListener('change', function () {
-      const file = this.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = e => { document.getElementById('manualVersesInputParallel').value = e.target.result; };
-      reader.readAsText(file, 'utf-8');
-    });
-
-    function toggleManualSrtParallel() {
-      const area = document.getElementById('manualSrtAreaParallel');
-      area.style.display = area.style.display === 'none' ? 'block' : 'none';
-    }
-
-    function toggleManualVersesParallel() {
-      const area = document.getElementById('manualVersesAreaParallel');
-      area.style.display = area.style.display === 'none' ? 'block' : 'none';
-    }
-
-    function loadManualSrtParallel() {
-      const srtText = document.getElementById('manualSrtInputParallel').value.trim();
-      if (!srtText) { alert('הדבק SRT תחילה'); return; }
-      lastData.srt = srtText;
-      document.getElementById('srtResult').textContent = srtText;
-      srtSegments = parseSrt(srtText);
-      if (!srtSegments.length) { alert('לא זוהו segments ב-SRT'); return; }
-      renderSrtSegments(srtSegments);
-      if (selectedAudioFile) {
-        localStorage.setItem(`srtData_${selectedAudioFile.name}_${selectedAudioFile.size}`, srtText);
-      }
-      document.getElementById('srtBlock').style.display = 'block';
-      document.getElementById('srtBody').style.display = 'block';
-      document.getElementById('srtArrow').textContent = '▲';
-      document.getElementById('manualSrtAreaParallel').style.display = 'none';
-    }
-
-    async function findVersesManualParallel() {
-      const text = document.getElementById('manualInputParallel').value.trim();
-      if (!text) { alert('הדבק טקסט'); return; }
-      const btn = document.getElementById('manualVersesBtnParallel');
-      const result = document.getElementById('manualVersesResultParallel');
-      btn.disabled = true; btn.textContent = 'מחפש...';
-      result.style.display = 'none';
-      try {
-        const data = await callFindVerses(text);
-        renderVerses(data, result);
-      } catch (e) {
-        result.textContent = 'שגיאת רשת: ' + e.message;
-        result.style.display = 'block';
-      } finally {
-        btn.disabled = false; btn.textContent = 'זיהוי פסוקים ברצף';
-      }
-    }
-
-    function loadManualVersesParallel() {
-      const raw = document.getElementById('manualVersesInputParallel').value.trim();
-      if (!raw) { alert('הדבק JSON או SRT תחילה'); return; }
-      let data;
-      if (raw.includes('-->')) {
-        const segs = parseSrt(raw);
-        if (!segs.length) { alert('לא זוהו ערכים ב-SRT'); return; }
-        const verses = segs.map(s => ({
-          verse: s.text,
-          startTime: s.start != null ? new Date(s.start * 1000).toISOString().substr(11, 8) : undefined,
-        }));
-        data = { verses, complete: true };
-      } else {
-        try { data = JSON.parse(raw); } catch (e) { alert('JSON לא תקין: ' + e.message); return; }
-        if (Array.isArray(data)) data = { verses: data, complete: true };
-        if (!data.verses) { alert('לא נמצא שדה "verses" ב-JSON'); return; }
-      }
-      const container = document.getElementById('manualVersesResultParallel');
-      renderVerses(data, container);
-      if (selectedAudioFile && data.verses?.length) {
-        const key = `verseMapping_${selectedAudioFile.name}_${selectedAudioFile.size}`;
-        localStorage.setItem(key, JSON.stringify(data.verses));
-        updateCacheButtons();
-      }
-      container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      document.getElementById('manualVersesAreaParallel').style.display = 'none';
-    }
-
-    async function callFindVerses(text) {
-      const res = await fetch('/find-verses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      return res.json();
-    }
-
-    function switchTab(tab) {
-      document.getElementById('classicView').style.display = tab === 'classic' ? '' : 'none';
-      document.getElementById('parallelView').style.display = tab === 'parallel' ? '' : 'none';
-      document.getElementById('tabClassic').classList.toggle('tab-active', tab === 'classic');
-      document.getElementById('tabParallel').classList.toggle('tab-active', tab === 'parallel');
-      document.querySelector('.card').classList.toggle('wide', tab === 'parallel');
-      if (tab === 'parallel' && lastVersesData?.length && srtSegments?.length) {
-        renderParallelVerses({ verses: lastVersesData });
-      }
-    }
-
-    async function findVersesParallel() {
-      const text = document.getElementById('srtResult').textContent.trim();
-      if (!text) { alert('אין SRT — תמלל קובץ או הדבק SRT בתצוגה הרגילה תחילה'); return; }
-      const btn = document.getElementById('parallelVersesBtn');
-      const status = document.getElementById('parallelStatus');
-      btn.disabled = true; btn.textContent = 'מחפש...';
-      status.textContent = '';
-      try {
-        const data = await callFindVerses(text);
-        renderParallelVerses(data);
-      } catch (e) {
-        status.textContent = 'שגיאה: ' + e.message;
-      } finally {
-        btn.disabled = false; btn.textContent = 'זיהוי פסוקים';
-      }
-    }
-
-    function renderParallelVerses(versesData) {
-      const container = document.getElementById('parallelResult');
-      if (versesData.error) {
-        container.textContent = 'שגיאה: ' + versesData.error;
-        container.style.display = 'block';
-        return;
-      }
-      const { verses = [], complete } = versesData;
-      if (verses.length) lastVersesData = verses;
-
-      if (!srtSegments?.length) {
-        container.textContent = 'אין נתוני SRT — תמלל קובץ או הדבק SRT בתצוגה הרגילה תחילה';
-        container.style.display = 'block';
-        return;
-      }
-
-      const bySubtitle = {};
-      for (const v of verses) {
-        if (!v.missing && v.subtitleNum) bySubtitle[v.subtitleNum] = v;
-      }
-      const byTime = {};
-      for (const v of verses) {
-        if (!v.missing && !v.subtitleNum && v.startTime) {
-          const sec = srtTimeSec(v.startTime + ',000');
-          let closest = null, minDiff = Infinity;
-          for (const s of srtSegments) {
-            const diff = Math.abs(s.start - sec);
-            if (diff < minDiff) { minDiff = diff; closest = s.id; }
-          }
-          if (closest !== null && minDiff < 5) byTime[closest] = v;
-        }
-      }
-
-      let html = `<div style="margin-bottom:0.75rem;font-size:0.9rem;color:#555;">${complete ? '✅ הרצף שלם' : '⚠️ יש חורים ברצף'}</div>`;
-      html += `<div class="parallel-grid">`;
-      for (const seg of srtSegments) {
-        const verse = bySubtitle[seg.id] ?? byTime[seg.id];
-        html += `<div class="parallel-seg" data-start="${seg.start}" data-end="${seg.end}">`;
-        html += `<span class="srt-time">${fmtSec(seg.start)}</span> ${escHtml(seg.text)}`;
-        html += `</div>`;
-        html += `<div class="parallel-verse-cell">`;
-        if (verse) {
-          const sec = verse.startTime ? srtTimeSec(verse.startTime + ',000') : null;
-          html += `<div class="verse-card"${sec !== null ? ` data-start="${sec}"` : ''}>`;
-          html += `<div class="verse-header">`;
-          html += `<span class="verse-name">${escHtml(verse.verse)}</span>`;
-          if (verse.startTime) html += `<span class="verse-time">${escHtml(verse.startTime)}</span>`;
-          html += `</div>`;
-          if (verse.verseText) html += `<div class="verse-original">${escHtml(verse.verseText)}</div>`;
-          html += `</div>`;
-        }
-        html += `</div>`;
-      }
-      html += `</div>`;
-
-      container.innerHTML = html;
-      container.style.display = 'block';
-
-      container.querySelectorAll('.verse-card[data-start]').forEach(card => {
-        card.style.cursor = 'pointer';
-        card.addEventListener('click', () => {
-          const audio = document.getElementById('srtPlayer');
-          audio.currentTime = parseFloat(card.dataset.start);
-          audio.play();
-        });
-      });
-
-      document.getElementById('srtPlayer').addEventListener('timeupdate', function () {
-        const t = this.currentTime;
-        container.querySelectorAll('.parallel-seg[data-start]').forEach(div => {
-          const s = parseFloat(div.dataset.start), e = parseFloat(div.dataset.end);
-          div.classList.toggle('active', t >= s && t < e);
-        });
-      });
     }
 
     initFromCache();
