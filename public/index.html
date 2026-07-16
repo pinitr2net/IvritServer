@@ -347,7 +347,7 @@
     let userViewActive = false;
     let lastCaptionSegId = null;
     let uvVerses = [];
-    let uvCurrentIdx = -1;
+    let uvCurrentIdx = null; // null = not yet rendered; forces an initial render even if idx computes to -1
     updateCacheButtons();
 
     document.getElementById('audioFile').addEventListener('change', async function () {
@@ -465,7 +465,7 @@
       document.getElementById('userViewCaption').textContent = '';
       lastCaptionSegId = null;
       uvVerses = [];
-      uvCurrentIdx = -1;
+      uvCurrentIdx = null;
       document.getElementById('uvPrev').textContent = '';
       document.getElementById('uvCurrent').textContent = '';
       document.getElementById('uvNext').textContent = '';
@@ -724,7 +724,7 @@
       uvVerses = lastVersesData
         .filter(v => !v.missing && v.verseText && v.startTime)
         .map(v => ({ text: v.verseText, sec: srtTimeSec(v.startTime + ',000') }));
-      uvCurrentIdx = -1;
+      uvCurrentIdx = null;
     }
 
     function renderUvSlots() {
