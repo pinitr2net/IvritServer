@@ -231,6 +231,27 @@
     }
     #viewToggleFab:disabled { background: #94a3b8; cursor: not-allowed; box-shadow: none; }
     #viewToggleFab:hover:not(:disabled) { background: #0e7490; }
+    #captionToggleBtn {
+      position: fixed;
+      top: 68px;
+      right: 68px;
+      z-index: 200;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: #0891b2;
+      color: #fff;
+      font-size: 1.2rem;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    #captionToggleBtn.uv-off { background: #94a3b8; }
     #userViewVerses {
       flex: 1 1 auto;
       display: grid;
@@ -276,6 +297,7 @@
 <body>
   <div id="stickyPlayer"><audio id="srtPlayer" controls style="width:100%;"></audio></div>
   <button id="viewToggleFab" disabled onclick="toggleUserView()" title="החלף תצוגה">📖</button>
+  <button id="captionToggleBtn" onclick="toggleCaptions()" title="הסתר כתוביות">💬</button>
   <div class="card">
     <h1>תמלול עברית</h1>
     <input type="file" id="audioFile" accept="audio/*,video/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,.opus,.wma,.mp4,.mov,.avi,.mkv,.webm">
@@ -349,6 +371,7 @@
     let lastCaptionSegId = null;
     let uvVerses = [];
     let uvCurrentIdx = null; // null = not yet rendered; forces an initial render even if idx computes to -1
+    let captionsVisible = true;
     updateCacheButtons();
 
     document.getElementById('audioFile').addEventListener('change', async function () {
@@ -464,12 +487,18 @@
       fab.textContent = '📖';
       fab.title = 'תצוגת משתמש';
       document.getElementById('userViewCaption').textContent = '';
+      document.getElementById('userViewCaption').style.display = '';
       lastCaptionSegId = null;
       uvVerses = [];
       uvCurrentIdx = null;
       document.getElementById('uvPrev').textContent = '';
       document.getElementById('uvCurrent').textContent = '';
       document.getElementById('uvNext').textContent = '';
+      captionsVisible = true;
+      const captionBtn = document.getElementById('captionToggleBtn');
+      captionBtn.style.display = 'none';
+      captionBtn.classList.remove('uv-off');
+      captionBtn.title = 'הסתר כתוביות';
     }
 
     function applyAudioFile(file) {
@@ -715,10 +744,19 @@
       const fab = document.getElementById('viewToggleFab');
       fab.textContent = userViewActive ? '🛠️' : '📖';
       fab.title = userViewActive ? 'חזרה לתצוגת ניפוי' : 'תצוגת משתמש';
+      document.getElementById('captionToggleBtn').style.display = userViewActive ? 'flex' : 'none';
       if (userViewActive) {
         renderUserView();
         updateUserViewPlayback();
       }
+    }
+
+    function toggleCaptions() {
+      captionsVisible = !captionsVisible;
+      document.getElementById('userViewCaption').style.display = captionsVisible ? 'flex' : 'none';
+      const btn = document.getElementById('captionToggleBtn');
+      btn.classList.toggle('uv-off', !captionsVisible);
+      btn.title = captionsVisible ? 'הסתר כתוביות' : 'הצג כתוביות';
     }
 
     function renderUserView() {
