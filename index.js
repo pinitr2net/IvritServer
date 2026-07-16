@@ -15,6 +15,10 @@ const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
 
+const LECTURES_DIR = path.join(__dirname, 'lectures');
+const LECTURE_SLUG_RE = /^[a-zA-Z0-9_-]+$/;
+const AUDIO_EXTS = ['.mp3', '.m4a', '.wav', '.aac', '.ogg', '.flac', '.opus', '.wma', '.mp4', '.mov', '.avi', '.mkv', '.webm'];
+
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
 
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
@@ -34,6 +38,41 @@ function numToHebrew(n) {
   let result = '';
   for (const [val, ch] of vals) { while (n >= val) { result += ch; n -= val; } }
   return result;
+}
+
+function hebrewToNum(str) {
+  const vals = { 'א':1,'ב':2,'ג':3,'ד':4,'ה':5,'ו':6,'ז':7,'ח':8,'ט':9,'י':10,
+    'כ':20,'ך':20,'ל':30,'מ':40,'ם':40,'נ':50,'ן':50,'ס':60,'ע':70,'פ':80,'ף':80,
+    'צ':90,'ץ':90,'ק':100,'ר':200,'ש':300,'ת':400 };
+  let sum = 0;
+  for (const ch of str) { if (vals[ch]) sum += vals[ch]; }
+  return sum;
+}
+
+function resolveLectureFiles(slug) {
+  const dir = path.join(LECTURES_DIR, slug);
+  if (!fs.existsSync(dir)) return null;
+  const files = fs.readdirSync(dir);
+  const has = name => files.includes(name);
+  const pick = candidates => candidates.find(has);
+
+  const captionsFile = pick([`${slug}.corrected.srt`, `${slug}.srt`, `${slug}.verses.srt`]);
+  const refsFile = has(`${slug}.refs.srt`) ? `${slug}.refs.srt` : null;
+  const chaptersFile = has(`${slug}.chapters.srt`) ? `${slug}.chapters.srt` : null;
+  const metaFile = has(`${slug}.meta.json`) ? `${slug}.meta.json` : null;
+  const audioFile = files.find(f => f.startsWith(`${slug}.`) && AUDIO_EXTS.includes(path.extname(f).toLowerCase()));
+
+  if (!captionsFile || !refsFile || !metaFile || !audioFile) return null;
+
+  const meta = JSON.parse(fs.readFileSync(path.join(dir, metaFile), 'utf8'));
+
+  return {
+    book: meta.book,
+    audioPath: path.join(dir, audioFile),
+    captionsPath: path.join(dir, captionsFile),
+    refsPath: path.join(dir, refsFile),
+    chaptersPath: chaptersFile ? path.join(dir, chaptersFile) : null,
+  };
 }
 
 function detectGaps(detectedVerses) {
@@ -283,6 +322,63 @@ app.post('/claude', express.json(), async (req, res) => {
     const result = response.content.find(b => b.type === 'text')?.text ?? '';
     res.json({ result });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/lecture/:slug', (req, res) => {
+  if (!LECTURE_SLUG_RE.test(req.params.slug)) return res.status(404).send('Not found');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/lecture/:slug/audio', (req, res) => {
+  const { slug } = req.params;
+  if (!LECTURE_SLUG_RE.test(slug)) return res.status(404).json({ error: 'Not found' });
+  const lecture = resolveLectureFiles(slug);
+  if (!lecture) return res.status(404).json({ error: 'Lecture not found' });
+  res.sendFile(lecture.audioPath);
+});
+
+app.get('/lecture/:slug/data.json', async (req, res) => {
+  const { slug } = req.params;
+  if (!LECTURE_SLUG_RE.test(slug)) return res.status(404).json({ error: 'Not found' });
+  const lecture = resolveLectureFiles(slug);
+  if (!lecture) return res.status(404).json({ error: 'Lecture not found' });
+
+  try {
+    const refsSrt = fs.readFileSync(lecture.refsPath, 'utf8');
+    const refBlocks = parseSrt(refsSrt);
+
+    const detectedVerses = await Promise.all(refBlocks.map(async block => {
+      const [chapterHeb, verseHeb] = block.text.split(',').map(s => s.trim());
+      const chapterNum = hebrewToNum(chapterHeb);
+      const verseNum = hebrewToNum(verseHeb);
+      const startTime = block.startTime.split(',')[0];
+      let verse = `${lecture.book} ${numToHebrew(chapterNum)}:${numToHebrew(verseNum)}`;
+      let verseText = null;
+      try {
+        const sefaria = await getVerse(lecture.book, chapterNum, verseNum);
+        if (sefaria.heRef) verse = sefaria.heRef;
+        verseText = sefaria.verseText;
+      } catch (e) {
+        console.warn('Sefaria lookup failed:', lecture.book, chapterNum, verseNum, e.message);
+      }
+      return { book: lecture.book, chapterNum, verseNum, verse, verseText, startTime };
+    }));
+
+    const { verses, complete } = detectGaps(detectedVerses);
+
+    let topics;
+    if (lecture.chaptersPath) {
+      const chaptersSrt = fs.readFileSync(lecture.chaptersPath, 'utf8');
+      topics = parseSrt(chaptersSrt).map(b => ({ title: b.text, startTime: b.startTime.split(',')[0] }));
+    }
+
+    const srt = fs.readFileSync(lecture.captionsPath, 'utf8');
+
+    res.json({ book: lecture.book, audioUrl: `/lecture/${slug}/audio`, srt, verses, complete, ...(topics && { topics }) });
+  } catch (err) {
+    console.error('lecture data error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

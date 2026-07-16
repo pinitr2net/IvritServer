@@ -529,6 +529,24 @@
       if (file) applyAudioFile(file);
     }
 
+    async function bootstrapFromLecture(slug) {
+      try {
+        const res = await fetch(`/lecture/${slug}/data.json`);
+        if (!res.ok) {
+          document.getElementById('status').textContent = 'השיעור לא נמצא';
+          return;
+        }
+        const data = await res.json();
+        clearDisplayedContent();
+        lastData.srt = data.srt;
+        srtSegments = parseSrt(data.srt);
+        setupAudioPlayer(data.audioUrl);
+        renderParallelVerses({ verses: data.verses, complete: data.complete, topics: data.topics });
+      } catch (e) {
+        document.getElementById('status').textContent = 'שגיאת רשת: ' + e.message;
+      }
+    }
+
     function escHtml(s) {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
@@ -715,11 +733,16 @@
       return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     }
 
-    function setupAudioPlayer(file) {
+    function setupAudioPlayer(fileOrUrl) {
       const audio = document.getElementById('srtPlayer');
       if (audio._blobUrl) URL.revokeObjectURL(audio._blobUrl);
-      audio._blobUrl = URL.createObjectURL(file);
-      audio.src = audio._blobUrl;
+      if (typeof fileOrUrl === 'string') {
+        audio._blobUrl = null;
+        audio.src = fileOrUrl;
+      } else {
+        audio._blobUrl = URL.createObjectURL(fileOrUrl);
+        audio.src = audio._blobUrl;
+      }
       document.getElementById('stickyPlayer').style.display = 'block';
       document.body.style.paddingTop = '60px';
       audio.ontimeupdate = () => {
@@ -1161,7 +1184,12 @@
       }
     }
 
-    initFromCache();
+    const lectureRouteMatch = location.pathname.match(/^\/lecture\/([a-zA-Z0-9_-]+)\/?$/);
+    if (lectureRouteMatch) {
+      bootstrapFromLecture(lectureRouteMatch[1]);
+    } else {
+      initFromCache();
+    }
   </script>
 </body>
 </html>
