@@ -181,6 +181,45 @@
     .topic-item:hover { background: #dcfce7; }
     .topic-item-title { color: #1e293b; }
     .topic-item-time { font-family: monospace; font-size: 0.8rem; color: #888; direction: ltr; }
+    .topic-divider {
+      grid-column: 1 / -1;
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-weight: bold;
+      color: #166534;
+      font-size: 0.9rem;
+      margin: 0.25rem 0;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .topic-divider:hover { background: #dcfce7; }
+    .topic-divider.active {
+      background: #bbf7d0;
+      border-color: #16a34a;
+      border-width: 2px;
+    }
+    #userView {
+      display: none;
+      position: fixed;
+      top: 60px; left: 0; right: 0; bottom: 0;
+      z-index: 90;
+      background: #f0f2f5;
+      flex-direction: column;
+      box-sizing: border-box;
+    }
+    #userViewHeader { flex-shrink: 0; padding: 0.5rem 1rem; text-align: left; }
+    #userViewVerses {
+      flex: 1 1 auto; overflow-y: auto;
+      padding: 1rem 2rem; max-width: 720px; width: 100%;
+      margin: 0 auto; box-sizing: border-box;
+    }
+    #userViewCaption {
+      flex-shrink: 0; min-height: 3.5rem; max-height: 30vh; overflow-y: auto;
+      background: #111827; color: #fff; font-size: 1.3rem; line-height: 1.6;
+      text-align: center; padding: 1rem 1.5rem; box-sizing: border-box;
+    }
   </style>
 </head>
 <body>
@@ -199,6 +238,7 @@
       <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;color:#555;cursor:pointer;user-select:none;">
         <input type="checkbox" id="includeTopics" style="cursor:pointer;"> כלול נושאים
       </label>
+      <button class="btn-download" id="userViewToggleBtn" style="background:#0891b2;" disabled onclick="toggleUserView()">תצוגת משתמש</button>
       <span id="parallelStatus" style="font-size:0.85rem;color:#888;"></span>
     </div>
     <div id="parallelResult"></div>
@@ -239,12 +279,22 @@
     </div>
   </div>
 
+  <div id="userView">
+    <div id="userViewHeader">
+      <button class="btn-download" id="userViewExitBtn" onclick="toggleUserView()">✕ חזרה לתצוגת ניפוי</button>
+    </div>
+    <div id="userViewVerses"></div>
+    <div id="userViewCaption"></div>
+  </div>
+
   <script>
     let lastData = {};
     let lastVersesData = [];
     let lastTopicsData = [];
     let selectedAudioFile = null;
     let srtSegments = [];
+    let userViewActive = false;
+    let lastCaptionSegId = null;
     updateCacheButtons();
 
     document.getElementById('audioFile').addEventListener('change', async function () {
@@ -352,6 +402,12 @@
       pr.style.display = 'none';
       document.getElementById('manualVersesResultParallel').style.display = 'none';
       document.getElementById('status').textContent = '';
+      userViewActive = false;
+      document.getElementById('userView').style.display = 'none';
+      document.querySelector('.card').style.display = '';
+      document.getElementById('userViewToggleBtn').disabled = true;
+      document.getElementById('userViewCaption').textContent = '';
+      lastCaptionSegId = null;
     }
 
     function applyAudioFile(file) {
@@ -365,8 +421,9 @@
         srtSegments = parseSrt(savedSrt);
       }
       const savedVerses = localStorage.getItem(`verseMapping_${fileKey}`);
+      const savedTopics = localStorage.getItem(`topicsMapping_${fileKey}`);
       if (savedVerses && srtSegments.length) {
-        const versesData = { verses: JSON.parse(savedVerses), complete: true };
+        const versesData = { verses: JSON.parse(savedVerses), complete: true, topics: savedTopics ? JSON.parse(savedTopics) : undefined };
         renderParallelVerses(versesData);
       }
       updateCacheButtons();
@@ -464,6 +521,9 @@
       if (selectedAudioFile && verses.length) {
         const key = `verseMapping_${selectedAudioFile.name}_${selectedAudioFile.size}`;
         localStorage.setItem(key, JSON.stringify(verses));
+        if (data.topics?.length) {
+          localStorage.setItem(`topicsMapping_${selectedAudioFile.name}_${selectedAudioFile.size}`, JSON.stringify(data.topics));
+        }
         updateCacheButtons();
       }
       const detected = verses.filter(v => !v.missing);
@@ -586,6 +646,73 @@
       };
     }
 
+    function toggleUserView() {
+      userViewActive = !userViewActive;
+      document.querySelector('.card').style.display = userViewActive ? 'none' : '';
+      document.getElementById('userView').style.display = userViewActive ? 'flex' : 'none';
+      if (userViewActive) {
+        renderUserView();
+        updateUserViewPlayback();
+      }
+    }
+
+    function renderUserView() {
+      const container = document.getElementById('userViewVerses');
+      let html = '';
+      let verseIndex = 0;
+      for (const v of lastVersesData) {
+        if (v.missing) {
+          html += `<div class="verse-missing">⚠️ חסר: ${escHtml(v.verse)}</div>`;
+          continue;
+        }
+        verseIndex++;
+        const sec = v.startTime ? srtTimeSec(v.startTime + ',000') : null;
+        html += `<div class="verse-card"${sec !== null ? ` data-ustart="${sec}"` : ''}>
+          <div class="verse-header">
+            <span class="verse-name"><span style="color:#aaa;font-weight:normal;margin-left:0.4rem;">${verseIndex}.</span>${escHtml(v.verse)}</span>
+            ${v.startTime ? `<span class="verse-time">${escHtml(v.startTime)}</span>` : ''}
+          </div>
+          ${v.verseText ? `<div class="verse-original">${escHtml(v.verseText)}</div>` : ''}
+        </div>`;
+      }
+      container.innerHTML = html || '<div style="text-align:center;color:#888;">אין פסוקים להצגה</div>';
+      container.querySelectorAll('.verse-card[data-ustart]').forEach(el => {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => {
+          const audio = document.getElementById('srtPlayer');
+          audio.currentTime = parseFloat(el.dataset.ustart);
+          audio.play();
+        });
+      });
+    }
+
+    function updateUserViewPlayback() {
+      if (!userViewActive) return;
+      const audio = document.getElementById('srtPlayer');
+      const t = audio.currentTime;
+
+      const captionEl = document.getElementById('userViewCaption');
+      const seg = srtSegments.find(s => t >= s.start && t < s.end);
+      if (seg) {
+        if (seg.id !== lastCaptionSegId) { captionEl.textContent = seg.text; lastCaptionSegId = seg.id; }
+      } else if (lastCaptionSegId !== null) {
+        captionEl.textContent = ''; lastCaptionSegId = null;
+      }
+
+      const cards = [...document.querySelectorAll('#userViewVerses .verse-card[data-ustart]')];
+      cards.forEach(c => c.classList.remove('active'));
+      let active = null;
+      for (const c of cards) {
+        if (parseFloat(c.dataset.ustart) <= t) active = c;
+      }
+      if (active) {
+        active.classList.add('active');
+        active.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }
+
+    document.getElementById('srtPlayer').addEventListener('timeupdate', updateUserViewPlayback);
+
     document.getElementById('manualSrtFileParallel').addEventListener('change', function () {
       const file = this.files[0];
       if (!file) return;
@@ -626,6 +753,7 @@
       if (!selectedAudioFile) return;
       const fileKey = `${selectedAudioFile.name}_${selectedAudioFile.size}`;
       localStorage.removeItem(`verseMapping_${fileKey}`);
+      localStorage.removeItem(`topicsMapping_${fileKey}`);
       localStorage.removeItem(`srtData_${fileKey}`);
       document.getElementById('manualVersesResultParallel').style.display = 'none';
       updateCacheButtons();
@@ -633,7 +761,7 @@
 
     function clearAllCache() {
       Object.keys(localStorage)
-        .filter(k => k.startsWith('verseMapping_') || k.startsWith('srtData_'))
+        .filter(k => k.startsWith('verseMapping_') || k.startsWith('topicsMapping_') || k.startsWith('srtData_'))
         .forEach(k => localStorage.removeItem(k));
       document.getElementById('manualVersesResultParallel').style.display = 'none';
       updateCacheButtons();
@@ -735,6 +863,13 @@
       }
       const { verses = [], complete } = versesData;
       if (verses.length) lastVersesData = verses;
+      if (selectedAudioFile && verses.length) {
+        localStorage.setItem(`verseMapping_${selectedAudioFile.name}_${selectedAudioFile.size}`, JSON.stringify(verses));
+        if (versesData.topics?.length) {
+          localStorage.setItem(`topicsMapping_${selectedAudioFile.name}_${selectedAudioFile.size}`, JSON.stringify(versesData.topics));
+        }
+        updateCacheButtons();
+      }
 
       if (!srtSegments?.length) {
         container.textContent = 'אין נתוני SRT — תמלל קובץ או הדבק SRT תחילה';
@@ -781,8 +916,26 @@
         html += `</div>`;
       }
 
+      const lastSegEnd = srtSegments.length ? srtSegments[srtSegments.length - 1].end : 0;
+      const topicMarkers = (versesData.topics || [])
+        .map((t, origIdx) => ({ t, origIdx }))
+        .filter(({ t }) => t.startTime)
+        .map(({ t, origIdx }) => ({ sec: srtTimeSec(t.startTime + ',000'), title: t.title, origIdx }))
+        .sort((a, b) => a.sec - b.sec);
+      for (let i = 0; i < topicMarkers.length; i++) {
+        topicMarkers[i].endSec = i < topicMarkers.length - 1 ? topicMarkers[i + 1].sec : lastSegEnd;
+      }
+      let tmIdx = 0;
+
       html += `<div class="parallel-grid">`;
       for (const seg of srtSegments) {
+        while (tmIdx < topicMarkers.length && topicMarkers[tmIdx].sec <= seg.start) {
+          const tm = topicMarkers[tmIdx];
+          html += `<div class="topic-divider" data-start="${tm.sec}" data-end="${tm.endSec}">`;
+          html += `<span style="color:#86efac;margin-left:0.4rem;">${tm.origIdx + 1}.</span>${escHtml(tm.title)}`;
+          html += `</div>`;
+          tmIdx++;
+        }
         const verse = bySubtitle[seg.id] ?? byTime[seg.id];
         html += `<div class="parallel-seg" data-start="${seg.start}" data-end="${seg.end}">`;
         html += `<span class="srt-time">${fmtSec(seg.start)}</span> ${escHtml(seg.text)}`;
@@ -800,12 +953,19 @@
         }
         html += `</div>`;
       }
+      while (tmIdx < topicMarkers.length) {
+        const tm = topicMarkers[tmIdx];
+        html += `<div class="topic-divider" data-start="${tm.sec}" data-end="${tm.endSec}">`;
+        html += `<span style="color:#86efac;margin-left:0.4rem;">${tm.origIdx + 1}.</span>${escHtml(tm.title)}`;
+        html += `</div>`;
+        tmIdx++;
+      }
       html += `</div>`;
 
       container.innerHTML = html;
       container.style.display = 'block';
 
-      container.querySelectorAll('.verse-card[data-start], .topic-item[data-start]').forEach(el => {
+      container.querySelectorAll('.verse-card[data-start], .topic-item[data-start], .topic-divider[data-start]').forEach(el => {
         el.style.cursor = 'pointer';
         el.addEventListener('click', () => {
           const audio = document.getElementById('srtPlayer');
@@ -820,7 +980,13 @@
           const s = parseFloat(div.dataset.start), e = parseFloat(div.dataset.end);
           div.classList.toggle('active', t >= s && t < e);
         });
+        container.querySelectorAll('.topic-divider[data-start]').forEach(div => {
+          const s = parseFloat(div.dataset.start), e = parseFloat(div.dataset.end);
+          div.classList.toggle('active', t >= s && t < e);
+        });
       });
+
+      document.getElementById('userViewToggleBtn').disabled = false;
     }
 
     async function transcribe() {

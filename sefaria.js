@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const CACHE_FILE = path.join(__dirname, 'data', 'sefaria-cache.json');
+const USE_CACHE = false; // בוטל זמנית
 
 const sefariaClient = axios.create({
   baseURL: 'https://www.sefaria.org/api',
@@ -10,7 +11,7 @@ const sefariaClient = axios.create({
 });
 
 let cache = {};
-if (fs.existsSync(CACHE_FILE)) {
+if (USE_CACHE && fs.existsSync(CACHE_FILE)) {
   cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
 }
 
@@ -20,10 +21,12 @@ function saveCache() {
 }
 
 async function sefariaGet(urlPath) {
-  if (cache[urlPath]) return cache[urlPath];
+  if (USE_CACHE && cache[urlPath]) return cache[urlPath];
   const res = await sefariaClient.get(urlPath);
-  cache[urlPath] = res.data;
-  saveCache();
+  if (USE_CACHE) {
+    cache[urlPath] = res.data;
+    saveCache();
+  }
   return res.data;
 }
 
