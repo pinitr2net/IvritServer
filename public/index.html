@@ -209,7 +209,28 @@
       flex-direction: column;
       box-sizing: border-box;
     }
-    #userViewHeader { flex-shrink: 0; padding: 0.5rem 1rem; text-align: left; }
+    #viewToggleFab {
+      position: fixed;
+      top: 68px;
+      right: 16px;
+      z-index: 200;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: #0891b2;
+      color: #fff;
+      font-size: 1.3rem;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    #viewToggleFab:disabled { background: #94a3b8; cursor: not-allowed; box-shadow: none; }
+    #viewToggleFab:hover:not(:disabled) { background: #0e7490; }
     #userViewVerses {
       flex: 1 1 auto; overflow-y: auto;
       padding: 1rem 2rem; max-width: 720px; width: 100%;
@@ -224,6 +245,7 @@
 </head>
 <body>
   <div id="stickyPlayer"><audio id="srtPlayer" controls style="width:100%;"></audio></div>
+  <button id="viewToggleFab" disabled onclick="toggleUserView()" title="החלף תצוגה">📖</button>
   <div class="card">
     <h1>תמלול עברית</h1>
     <input type="file" id="audioFile" accept="audio/*,video/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,.opus,.wma,.mp4,.mov,.avi,.mkv,.webm">
@@ -238,7 +260,6 @@
       <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;color:#555;cursor:pointer;user-select:none;">
         <input type="checkbox" id="includeTopics" style="cursor:pointer;"> כלול נושאים
       </label>
-      <button class="btn-download" id="userViewToggleBtn" style="background:#0891b2;" disabled onclick="toggleUserView()">תצוגת משתמש</button>
       <span id="parallelStatus" style="font-size:0.85rem;color:#888;"></span>
     </div>
     <div id="parallelResult"></div>
@@ -280,9 +301,6 @@
   </div>
 
   <div id="userView">
-    <div id="userViewHeader">
-      <button class="btn-download" id="userViewExitBtn" onclick="toggleUserView()">✕ חזרה לתצוגת ניפוי</button>
-    </div>
     <div id="userViewVerses"></div>
     <div id="userViewCaption"></div>
   </div>
@@ -405,7 +423,10 @@
       userViewActive = false;
       document.getElementById('userView').style.display = 'none';
       document.querySelector('.card').style.display = '';
-      document.getElementById('userViewToggleBtn').disabled = true;
+      const fab = document.getElementById('viewToggleFab');
+      fab.disabled = true;
+      fab.textContent = '📖';
+      fab.title = 'תצוגת משתמש';
       document.getElementById('userViewCaption').textContent = '';
       lastCaptionSegId = null;
     }
@@ -650,6 +671,9 @@
       userViewActive = !userViewActive;
       document.querySelector('.card').style.display = userViewActive ? 'none' : '';
       document.getElementById('userView').style.display = userViewActive ? 'flex' : 'none';
+      const fab = document.getElementById('viewToggleFab');
+      fab.textContent = userViewActive ? '🛠️' : '📖';
+      fab.title = userViewActive ? 'חזרה לתצוגת ניפוי' : 'תצוגת משתמש';
       if (userViewActive) {
         renderUserView();
         updateUserViewPlayback();
@@ -659,20 +683,11 @@
     function renderUserView() {
       const container = document.getElementById('userViewVerses');
       let html = '';
-      let verseIndex = 0;
       for (const v of lastVersesData) {
-        if (v.missing) {
-          html += `<div class="verse-missing">⚠️ חסר: ${escHtml(v.verse)}</div>`;
-          continue;
-        }
-        verseIndex++;
+        if (v.missing || !v.verseText) continue;
         const sec = v.startTime ? srtTimeSec(v.startTime + ',000') : null;
         html += `<div class="verse-card"${sec !== null ? ` data-ustart="${sec}"` : ''}>
-          <div class="verse-header">
-            <span class="verse-name"><span style="color:#aaa;font-weight:normal;margin-left:0.4rem;">${verseIndex}.</span>${escHtml(v.verse)}</span>
-            ${v.startTime ? `<span class="verse-time">${escHtml(v.startTime)}</span>` : ''}
-          </div>
-          ${v.verseText ? `<div class="verse-original">${escHtml(v.verseText)}</div>` : ''}
+          <div class="verse-original">${escHtml(v.verseText)}</div>
         </div>`;
       }
       container.innerHTML = html || '<div style="text-align:center;color:#888;">אין פסוקים להצגה</div>';
@@ -986,7 +1001,7 @@
         });
       });
 
-      document.getElementById('userViewToggleBtn').disabled = false;
+      document.getElementById('viewToggleFab').disabled = false;
     }
 
     async function transcribe() {
