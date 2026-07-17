@@ -266,15 +266,20 @@
       transition: opacity 0.2s ease;
     }
     .uv-prev, .uv-next {
-      align-self: end;
       opacity: 0.4;
       font-size: 1.1rem;
       color: #333;
       cursor: pointer;
+    }
+    .uv-next { align-self: start; padding-top: 0.75rem; }
+    .uv-prev:hover, .uv-next:hover { opacity: 0.65; }
+    #uvPrevContainer {
+      align-self: end;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
       padding-bottom: 0.75rem;
     }
-    .uv-next { align-self: start; padding-bottom: 0; padding-top: 0.75rem; }
-    .uv-prev:hover, .uv-next:hover { opacity: 0.65; }
     .uv-current {
       position: relative;
       align-self: center;
@@ -330,6 +335,14 @@
       <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;color:#555;cursor:pointer;user-select:none;">
         <input type="checkbox" id="includeTopics" style="cursor:pointer;"> כלול נושאים
       </label>
+      <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;color:#555;user-select:none;">
+        פסוקים קודמים בתצוגת משתמש:
+        <select id="prevVersesSelect" onchange="setPrevVersesCount(this.value)" style="padding:0.2rem 0.4rem;border-radius:4px;border:1px solid #ccc;cursor:pointer;">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+        </select>
+      </label>
       <span id="parallelStatus" style="font-size:0.85rem;color:#888;"></span>
     </div>
     <div id="parallelResult"></div>
@@ -372,7 +385,11 @@
 
   <div id="userView">
     <div id="userViewVerses">
-      <div class="uv-line uv-prev" id="uvPrev"></div>
+      <div id="uvPrevContainer">
+        <div class="uv-line uv-prev" id="uvPrev3"></div>
+        <div class="uv-line uv-prev" id="uvPrev2"></div>
+        <div class="uv-line uv-prev" id="uvPrev1"></div>
+      </div>
       <div class="uv-line uv-current" id="uvCurrent">
         <span id="uvCurrentText"></span>
         <div id="uvMeter"><div id="uvMeterFill"></div></div>
@@ -393,7 +410,15 @@
     let uvVerses = [];
     let uvCurrentIdx = null; // null = not yet rendered; forces an initial render even if idx computes to -1
     let captionsVisible = true;
+    let prevVersesCount = parseInt(localStorage.getItem('uvPrevVersesCount') || '1', 10);
+    document.getElementById('prevVersesSelect').value = String(prevVersesCount);
     updateCacheButtons();
+
+    function setPrevVersesCount(n) {
+      prevVersesCount = parseInt(n, 10);
+      localStorage.setItem('uvPrevVersesCount', String(prevVersesCount));
+      if (userViewActive) renderUvSlots();
+    }
 
     document.getElementById('audioFile').addEventListener('change', async function () {
       const file = this.files[0];
@@ -513,8 +538,10 @@
       lastCaptionSegId = null;
       uvVerses = [];
       uvCurrentIdx = null;
-      document.getElementById('uvPrev').textContent = '';
-      document.getElementById('uvCurrent').textContent = '';
+      document.getElementById('uvPrev1').textContent = '';
+      document.getElementById('uvPrev2').textContent = '';
+      document.getElementById('uvPrev3').textContent = '';
+      document.getElementById('uvCurrentText').textContent = '';
       document.getElementById('uvNext').textContent = '';
       captionsVisible = true;
       const captionBtn = document.getElementById('captionToggleBtn');
@@ -815,13 +842,17 @@
     }
 
     function renderUvSlots() {
-      const prev = uvVerses[uvCurrentIdx - 1];
+      for (let distance = 1; distance <= 3; distance++) {
+        const el = document.getElementById('uvPrev' + distance);
+        const show = distance <= prevVersesCount;
+        const v = show ? uvVerses[uvCurrentIdx - distance] : undefined;
+        el.textContent = v ? v.text : '';
+        el.style.display = v ? '' : 'none';
+      }
       const cur = uvVerses[uvCurrentIdx];
       const next = uvVerses[uvCurrentIdx + 1];
-      const prevEl = document.getElementById('uvPrev');
       const curEl = document.getElementById('uvCurrent');
       const nextEl = document.getElementById('uvNext');
-      prevEl.textContent = prev ? prev.text : '';
       document.getElementById('uvCurrentText').textContent = cur ? cur.text : '';
       nextEl.textContent = next ? next.text : '';
       curEl.classList.remove('uv-snap');
@@ -859,7 +890,9 @@
       audio.play();
     }
 
-    document.getElementById('uvPrev').addEventListener('click', () => uvSeekTo(uvCurrentIdx - 1));
+    document.getElementById('uvPrev1').addEventListener('click', () => uvSeekTo(uvCurrentIdx - 1));
+    document.getElementById('uvPrev2').addEventListener('click', () => uvSeekTo(uvCurrentIdx - 2));
+    document.getElementById('uvPrev3').addEventListener('click', () => uvSeekTo(uvCurrentIdx - 3));
     document.getElementById('uvNext').addEventListener('click', () => uvSeekTo(uvCurrentIdx + 1));
 
     function updateUserViewPlayback() {
