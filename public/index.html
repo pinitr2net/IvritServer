@@ -343,6 +343,9 @@
           <option value="3">3</option>
         </select>
       </label>
+      <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;color:#555;cursor:pointer;user-select:none;">
+        <input type="checkbox" id="showMeterCheckbox" checked onchange="setShowMeter(this.checked)" style="cursor:pointer;"> הצג מד התקדמות בתצוגת משתמש
+      </label>
       <span id="parallelStatus" style="font-size:0.85rem;color:#888;"></span>
     </div>
     <div id="parallelResult"></div>
@@ -412,12 +415,24 @@
     let captionsVisible = true;
     let prevVersesCount = parseInt(localStorage.getItem('uvPrevVersesCount') || '1', 10);
     document.getElementById('prevVersesSelect').value = String(prevVersesCount);
+    let showMeter = localStorage.getItem('uvShowMeter') !== 'false';
+    document.getElementById('showMeterCheckbox').checked = showMeter;
+    document.getElementById('uvMeter').style.display = showMeter ? '' : 'none';
     updateCacheButtons();
 
     function setPrevVersesCount(n) {
       prevVersesCount = parseInt(n, 10);
       localStorage.setItem('uvPrevVersesCount', String(prevVersesCount));
       if (userViewActive) renderUvSlots();
+    }
+
+    function setShowMeter(checked) {
+      showMeter = checked;
+      localStorage.setItem('uvShowMeter', String(checked));
+      document.getElementById('uvMeter').style.display = checked ? '' : 'none';
+      if (userViewActive) {
+        if (checked) startUvMeterLoop(); else stopUvMeterLoop();
+      }
     }
 
     document.getElementById('audioFile').addEventListener('change', async function () {
@@ -820,7 +835,7 @@
       if (userViewActive) {
         renderUserView();
         updateUserViewPlayback();
-        startUvMeterLoop();
+        if (showMeter) startUvMeterLoop();
       } else {
         stopUvMeterLoop();
       }
