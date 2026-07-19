@@ -266,13 +266,15 @@
       transition: opacity 0.2s ease;
     }
     .uv-prev, .uv-next {
-      opacity: 0.4;
       font-size: 1.1rem;
       color: #333;
       cursor: pointer;
     }
-    .uv-next { align-self: start; padding-top: 0.75rem; }
-    .uv-prev:hover, .uv-next:hover { opacity: 0.65; }
+    .uv-prev { opacity: 0.4; }
+    .uv-prev:hover { opacity: 0.65; }
+    .uv-next { align-self: start; padding-top: 0.75rem; padding-bottom: 0.6rem; position: relative; }
+    #uvNextText { opacity: 0.4; transition: opacity 0.2s ease; }
+    .uv-next:hover #uvNextText { opacity: 0.65; }
     #uvPrevContainer {
       align-self: end;
       display: flex;
@@ -293,7 +295,7 @@
       from { opacity: 0.3; transform: translateY(18px) scale(0.94); }
       to   { opacity: 1;   transform: translateY(0) scale(1); }
     }
-    #uvMeter {
+    .uv-meter {
       position: absolute;
       left: 0; right: 0; bottom: 0;
       height: 3px;
@@ -301,7 +303,7 @@
       background: rgba(0,0,0,0.08);
       overflow: hidden;
     }
-    #uvMeterFill {
+    .uv-meter-fill {
       width: 100%;
       height: 100%;
       background: #f5a623;
@@ -345,6 +347,13 @@
       </label>
       <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;color:#555;cursor:pointer;user-select:none;">
         <input type="checkbox" id="showMeterCheckbox" checked onchange="setShowMeter(this.checked)" style="cursor:pointer;"> הצג מד התקדמות בתצוגת משתמש
+      </label>
+      <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;color:#555;user-select:none;">
+        מיקום מד ההתקדמות:
+        <select id="meterPositionSelect" onchange="setMeterPosition(this.value)" style="padding:0.2rem 0.4rem;border-radius:4px;border:1px solid #ccc;cursor:pointer;">
+          <option value="current">מתחת לפסוק הנוכחי (סוף הפסוק)</option>
+          <option value="next">מתחת לפסוק הבא (תחילת הפסוק הבא)</option>
+        </select>
       </label>
       <span id="parallelStatus" style="font-size:0.85rem;color:#888;"></span>
     </div>
@@ -395,9 +404,12 @@
       </div>
       <div class="uv-line uv-current" id="uvCurrent">
         <span id="uvCurrentText"></span>
-        <div id="uvMeter"><div id="uvMeterFill"></div></div>
+        <div class="uv-meter" id="uvMeterCurrent"><div class="uv-meter-fill" id="uvMeterFillCurrent"></div></div>
       </div>
-      <div class="uv-line uv-next" id="uvNext"></div>
+      <div class="uv-line uv-next" id="uvNext">
+        <span id="uvNextText"></span>
+        <div class="uv-meter" id="uvMeterNext"><div class="uv-meter-fill" id="uvMeterFillNext"></div></div>
+      </div>
     </div>
     <div id="userViewCaption"></div>
   </div>
@@ -417,8 +429,15 @@
     document.getElementById('prevVersesSelect').value = String(prevVersesCount);
     let showMeter = localStorage.getItem('uvShowMeter') !== 'false';
     document.getElementById('showMeterCheckbox').checked = showMeter;
-    document.getElementById('uvMeter').style.display = showMeter ? '' : 'none';
+    let meterPosition = localStorage.getItem('uvMeterPosition') === 'next' ? 'next' : 'current';
+    document.getElementById('meterPositionSelect').value = meterPosition;
+    applyMeterVisibility();
     updateCacheButtons();
+
+    function applyMeterVisibility() {
+      document.getElementById('uvMeterCurrent').style.display = (showMeter && meterPosition === 'current') ? '' : 'none';
+      document.getElementById('uvMeterNext').style.display = (showMeter && meterPosition === 'next') ? '' : 'none';
+    }
 
     function setPrevVersesCount(n) {
       prevVersesCount = parseInt(n, 10);
@@ -429,10 +448,16 @@
     function setShowMeter(checked) {
       showMeter = checked;
       localStorage.setItem('uvShowMeter', String(checked));
-      document.getElementById('uvMeter').style.display = checked ? '' : 'none';
+      applyMeterVisibility();
       if (userViewActive) {
         if (checked) startUvMeterLoop(); else stopUvMeterLoop();
       }
+    }
+
+    function setMeterPosition(value) {
+      meterPosition = value === 'next' ? 'next' : 'current';
+      localStorage.setItem('uvMeterPosition', meterPosition);
+      applyMeterVisibility();
     }
 
     document.getElementById('audioFile').addEventListener('change', async function () {
@@ -557,7 +582,7 @@
       document.getElementById('uvPrev2').textContent = '';
       document.getElementById('uvPrev3').textContent = '';
       document.getElementById('uvCurrentText').textContent = '';
-      document.getElementById('uvNext').textContent = '';
+      document.getElementById('uvNextText').textContent = '';
       captionsVisible = true;
       const captionBtn = document.getElementById('captionToggleBtn');
       captionBtn.style.display = 'none';
@@ -867,9 +892,8 @@
       const cur = uvVerses[uvCurrentIdx];
       const next = uvVerses[uvCurrentIdx + 1];
       const curEl = document.getElementById('uvCurrent');
-      const nextEl = document.getElementById('uvNext');
       document.getElementById('uvCurrentText').textContent = cur ? cur.text : '';
-      nextEl.textContent = next ? next.text : '';
+      document.getElementById('uvNextText').textContent = next ? next.text : '';
       curEl.classList.remove('uv-snap');
       void curEl.offsetWidth;
       curEl.classList.add('uv-snap');
@@ -877,7 +901,7 @@
 
     let uvMeterRaf = null;
     function updateUvMeter() {
-      const fill = document.getElementById('uvMeterFill');
+      const fill = document.getElementById(meterPosition === 'next' ? 'uvMeterFillNext' : 'uvMeterFillCurrent');
       const cur = uvCurrentIdx !== null ? uvVerses[uvCurrentIdx] : null;
       if (!cur) { fill.style.transform = 'scaleX(0)'; return; }
       const audio = document.getElementById('srtPlayer');
@@ -894,7 +918,8 @@
     }
     function stopUvMeterLoop() {
       if (uvMeterRaf !== null) { cancelAnimationFrame(uvMeterRaf); uvMeterRaf = null; }
-      document.getElementById('uvMeterFill').style.transform = 'scaleX(0)';
+      document.getElementById('uvMeterFillCurrent').style.transform = 'scaleX(0)';
+      document.getElementById('uvMeterFillNext').style.transform = 'scaleX(0)';
     }
 
     function uvSeekTo(idx) {
