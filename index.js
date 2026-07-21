@@ -332,9 +332,16 @@ app.post('/claude', express.json(), async (req, res) => {
   }
 });
 
-app.get('/lecture/:slug', (req, res) => {
+app.get('/lecture/debug/:slug', (req, res) => {
   if (!LECTURE_SLUG_RE.test(req.params.slug)) return res.status(404).send('Not found');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/lecture/:slug', (req, res) => {
+  if (!LECTURE_SLUG_RE.test(req.params.slug)) return res.status(404).send('Not found');
+  const html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+  const loaderStyle = '<style>#lectureLoader{display:flex}.card,#viewToggleFab,#userView{display:none}</style>';
+  res.send(html.replace('</head>', `${loaderStyle}</head>`));
 });
 
 app.get('/lecture/:slug/audio', (req, res) => {

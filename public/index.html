@@ -234,6 +234,27 @@
     }
     #viewToggleFab:disabled { background: #94a3b8; cursor: not-allowed; box-shadow: none; }
     #viewToggleFab:hover:not(:disabled) { background: #0e7490; }
+    #lectureLoader {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 300;
+      background: #f0f2f5;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+    }
+    #lectureLoader .spinner {
+      width: 48px;
+      height: 48px;
+      border: 5px solid #cbd5e1;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: lectureSpin 0.8s linear infinite;
+    }
+    #lectureLoader span { color: #555; font-size: 1rem; }
+    @keyframes lectureSpin { to { transform: rotate(360deg); } }
     #captionToggleBtn {
       position: fixed;
       top: 68px;
@@ -364,6 +385,7 @@
   </style>
 </head>
 <body>
+  <div id="lectureLoader"><div class="spinner"></div><span>טוען את השיעור...</span></div>
   <div id="stickyPlayer"><audio id="srtPlayer" controls style="width:100%;"></audio></div>
   <button id="viewToggleFab" disabled onclick="toggleUserView()" title="החלף תצוגה">📖</button>
   <button id="captionToggleBtn" class="uv-off" onclick="toggleCaptions()" title="הצג כתוביות">💬</button>
@@ -636,6 +658,7 @@
       document.querySelector('.card').style.display = '';
       const fab = document.getElementById('viewToggleFab');
       fab.disabled = true;
+      fab.style.display = '';
       fab.textContent = '📖';
       fab.title = 'תצוגת משתמש';
       document.getElementById('userViewCaption').textContent = '';
@@ -686,10 +709,12 @@
       if (file) applyAudioFile(file);
     }
 
-    async function bootstrapFromLecture(slug) {
+    async function bootstrapFromLecture(slug, isDebug) {
       try {
         const res = await fetch(`/lecture/${slug}/data.json`);
         if (!res.ok) {
+          document.getElementById('lectureLoader').style.display = 'none';
+          document.querySelector('.card').style.display = '';
           document.getElementById('status').textContent = 'השיעור לא נמצא';
           return;
         }
@@ -700,11 +725,37 @@
         document.getElementById('userViewTitle').textContent = lastData.title;
         srtSegments = parseSrt(data.srt);
         setupAudioPlayer(data.audioUrl);
+        setupLecturePositionPersistence(slug);
         renderParallelVerses({ verses: data.verses, complete: data.complete, topics: data.topics });
+        document.getElementById('lectureLoader').style.display = 'none';
         toggleUserView();
+        if (!isDebug) {
+          document.getElementById('viewToggleFab').style.display = 'none';
+        }
       } catch (e) {
+        document.getElementById('lectureLoader').style.display = 'none';
+        document.querySelector('.card').style.display = '';
         document.getElementById('status').textContent = 'שגיאת רשת: ' + e.message;
       }
+    }
+
+    function setupLecturePositionPersistence(slug) {
+      const audio = document.getElementById('srtPlayer');
+      const key = `lectureAudioPos_${slug}`;
+      const saved = parseFloat(localStorage.getItem(key));
+      if (!isNaN(saved) && saved > 0) {
+        audio.addEventListener('loadedmetadata', () => { audio.currentTime = saved; }, { once: true });
+      }
+      let lastSaved = 0;
+      audio.addEventListener('timeupdate', () => {
+        const t = audio.currentTime;
+        if (Math.abs(t - lastSaved) >= 2) {
+          localStorage.setItem(key, String(t));
+          lastSaved = t;
+        }
+      });
+      audio.addEventListener('pause', () => localStorage.setItem(key, String(audio.currentTime)));
+      window.addEventListener('beforeunload', () => localStorage.setItem(key, String(audio.currentTime)));
     }
 
     function numToHebrew(n) {
@@ -1098,11 +1149,11 @@
       if (uvPauseWatchRaf !== null) { cancelAnimationFrame(uvPauseWatchRaf); uvPauseWatchRaf = null; }
     }
 
-    function uvSeekTo(idx) {
+    function uvSeekTo(idx, opts = {}) {
       const v = uvVerses[idx];
       if (!v) return;
       const audio = document.getElementById('srtPlayer');
-      audio.pause();
+      if (opts.pause !== false) audio.pause();
       audio.currentTime = v.sec;
       uvCurrentIdx = idx;
       renderUvActive();
@@ -1112,8 +1163,13 @@
       const row = e.target.closest('.uv-row');
       if (!row) return;
       const idx = parseInt(row.dataset.idx, 10);
-      if (Number.isNaN(idx) || idx === uvCurrentIdx) return;
-      uvSeekTo(idx);
+      if (Number.isNaN(idx)) return;
+      if (idx === uvCurrentIdx) {
+        const audio = document.getElementById('srtPlayer');
+        if (audio.paused) audio.play(); else audio.pause();
+        return;
+      }
+      uvSeekTo(idx, { pause: false });
     });
 
     function uvNavigate(direction) {
@@ -1526,9 +1582,12 @@
       }
     }
 
+    const lectureDebugMatch = location.pathname.match(/^\/lecture\/debug\/([a-zA-Z0-9_-]+)\/?$/);
     const lectureRouteMatch = location.pathname.match(/^\/lecture\/([a-zA-Z0-9_-]+)\/?$/);
-    if (lectureRouteMatch) {
-      bootstrapFromLecture(lectureRouteMatch[1]);
+    if (lectureDebugMatch) {
+      bootstrapFromLecture(lectureDebugMatch[1], true);
+    } else if (lectureRouteMatch) {
+      bootstrapFromLecture(lectureRouteMatch[1], false);
     } else {
       initFromCache();
     }
