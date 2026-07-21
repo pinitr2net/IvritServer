@@ -208,8 +208,9 @@
       background: #f0f2f5;
       flex-direction: column;
       box-sizing: border-box;
-      --uv-num-col: 2.6rem;
-      --uv-num-slot: 1.3rem;
+      --uv-num-col: 2.8rem;
+      --uv-num-slot: 1.2rem;
+      --uv-row-spacer-col: 0.5rem;
     }
     #viewToggleFab {
       position: fixed;
@@ -308,6 +309,7 @@
       display: flex;
       align-items: center;
       justify-content: flex-start;
+      gap: 0.1rem;
       white-space: nowrap;
     }
     .uv-row-text {
@@ -316,7 +318,7 @@
       text-align: center;
     }
     .uv-row-spacer {
-      flex: 0 0 var(--uv-num-col);
+      flex: 0 0 var(--uv-row-spacer-col);
     }
     .uv-verse-num {
       flex: 0 0 var(--uv-num-slot);
@@ -934,7 +936,7 @@
       const fab = document.getElementById('viewToggleFab');
       fab.textContent = userViewActive ? '🛠️' : '📖';
       fab.title = userViewActive ? 'חזרה לתצוגת ניפוי' : 'תצוגת משתמש';
-      document.getElementById('captionToggleBtn').style.display = userViewActive ? 'flex' : 'none';
+      document.getElementById('captionToggleBtn').style.display = userViewActive ? 'none' : 'flex';
       if (userViewActive) {
         renderUserView();
         updateUserViewPlayback();
@@ -990,11 +992,12 @@
       return uvRowCenters[idx] != null ? uvRowCenters[idx] : 0;
     }
 
+    const UV_ANCHOR_RATIO = 0.35; // חלק מגובה ה-viewport שבו "יושבת" השורה הפעילה (0.5 = מרכז מדויק)
     function uvPositionTrack() {
       if (!uvRowCenters.length) return;
       const track = document.getElementById('uvTrack');
       const viewport = document.getElementById('userViewVerses');
-      const centerY = viewport.clientHeight / 2;
+      const centerY = viewport.clientHeight * UV_ANCHOR_RATIO;
       track.style.transform = `translateY(${centerY - uvComputeRowCenter()}px)`;
     }
 
