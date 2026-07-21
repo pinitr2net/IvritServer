@@ -18,6 +18,11 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
 const LECTURES_DIR = path.join(__dirname, 'lectures');
 const LECTURE_SLUG_RE = /^[a-zA-Z0-9_-]+$/;
 const AUDIO_EXTS = ['.mp3', '.m4a', '.wav', '.aac', '.ogg', '.flac', '.opus', '.wma', '.mp4', '.mov', '.avi', '.mkv', '.webm'];
+const AUDIO_MIME_TYPES = {
+  '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.aac': 'audio/aac',
+  '.ogg': 'audio/ogg', '.flac': 'audio/flac', '.opus': 'audio/opus', '.wma': 'audio/x-ms-wma',
+  '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.avi': 'video/x-msvideo', '.mkv': 'video/x-matroska', '.webm': 'video/webm',
+};
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
 
@@ -337,7 +342,34 @@ app.get('/lecture/:slug/audio', (req, res) => {
   if (!LECTURE_SLUG_RE.test(slug)) return res.status(404).json({ error: 'Not found' });
   const lecture = resolveLectureFiles(slug);
   if (!lecture) return res.status(404).json({ error: 'Lecture not found' });
-  res.sendFile(lecture.audioPath);
+
+  const contentType = AUDIO_MIME_TYPES[path.extname(lecture.audioPath).toLowerCase()] || 'application/octet-stream';
+  const fileSize = fs.statSync(lecture.audioPath).size;
+  const range = req.headers.range;
+
+  // Range מטופל כאן באופן ידני (בלי ETag/Last-Modified) כדי למנוע באג ידוע ב-Safari/iOS,
+  // שבו קאש הדפדפן משחזר תגובה שמורה מבייט 0 במקום לכבד Range חדש בבקשת seek.
+  if (!range) {
+    res.writeHead(200, { 'Content-Type': contentType, 'Content-Length': fileSize, 'Accept-Ranges': 'bytes' });
+    fs.createReadStream(lecture.audioPath).pipe(res);
+    return;
+  }
+
+  const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+  if (!match) return res.status(416).set('Content-Range', `bytes */${fileSize}`).end();
+  const start = match[1] ? parseInt(match[1], 10) : 0;
+  const end = match[2] ? parseInt(match[2], 10) : fileSize - 1;
+  if (start >= fileSize || end >= fileSize || start > end) {
+    return res.status(416).set('Content-Range', `bytes */${fileSize}`).end();
+  }
+
+  res.writeHead(206, {
+    'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+    'Accept-Ranges': 'bytes',
+    'Content-Length': end - start + 1,
+    'Content-Type': contentType,
+  });
+  fs.createReadStream(lecture.audioPath, { start, end }).pipe(res);
 });
 
 app.get('/lecture/:slug/data.json', async (req, res) => {
