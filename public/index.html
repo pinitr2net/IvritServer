@@ -1052,13 +1052,14 @@
       const row = uvRowEls[uvMeterRowIdx];
       if (!row) return;
       const fill = row.querySelector('.uv-meter-fill');
-      const cur = uvCurrentIdx !== null ? uvVerses[uvCurrentIdx] : null;
-      if (!cur) { fill.style.transform = 'scaleX(0)'; return; }
       const audio = document.getElementById('srtPlayer');
-      const next = uvVerses[uvCurrentIdx + 1];
+      // אין פסוק "נוכחי" לפני שהגיעו לפסוק הראשון (uvCurrentIdx === -1) - מודדים מתחילת ההשמעה עד הפסוק הראשון
+      const cur = (uvCurrentIdx !== null && uvCurrentIdx >= 0) ? uvVerses[uvCurrentIdx] : null;
+      const startSec = cur ? cur.sec : 0;
+      const next = cur ? uvVerses[uvCurrentIdx + 1] : uvVerses[0];
       const endSec = next ? next.sec : (isFinite(audio.duration) ? audio.duration : null);
-      if (endSec === null || endSec <= cur.sec) { fill.style.transform = 'scaleX(0)'; return; }
-      const progress = Math.min(1, Math.max(0, (audio.currentTime - cur.sec) / (endSec - cur.sec)));
+      if (endSec === null || endSec <= startSec) { fill.style.transform = 'scaleX(0)'; return; }
+      const progress = Math.min(1, Math.max(0, (audio.currentTime - startSec) / (endSec - startSec)));
       fill.style.transform = `scaleX(${progress})`;
     }
     function startUvMeterLoop() {
