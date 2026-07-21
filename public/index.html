@@ -208,6 +208,7 @@
       background: #f0f2f5;
       flex-direction: column;
       box-sizing: border-box;
+      --uv-num-col: 3rem;
     }
     #viewToggleFab {
       position: fixed;
@@ -252,6 +253,19 @@
       padding: 0;
     }
     #captionToggleBtn.uv-off { background: #94a3b8; }
+    #userViewTitle {
+      flex-shrink: 0;
+      height: 14.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 68px;
+      box-sizing: border-box;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #334155;
+      text-align: center;
+    }
     #userViewVerses {
       flex: 1 1 auto;
       position: relative;
@@ -268,7 +282,8 @@
     }
     .uv-row {
       position: relative;
-      text-align: center;
+      display: flex;
+      align-items: flex-start;
       line-height: 1.7;
       font-size: 1.3rem;
       color: #333;
@@ -286,11 +301,24 @@
     }
     .uv-row.uv-active:hover { opacity: 1; }
     .uv-row.uv-hidden-hist { opacity: 0; pointer-events: none; }
+    .uv-num-badge {
+      flex: 0 0 var(--uv-num-col);
+      height: calc(1.3rem * 1.7);
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0.15rem;
+      white-space: nowrap;
+    }
+    .uv-row-text {
+      flex: 1 1 0%;
+      min-width: 0;
+      text-align: center;
+    }
+    .uv-row-spacer {
+      flex: 0 0 var(--uv-num-col);
+    }
     .uv-verse-num {
-      position: absolute;
-      top: 50%;
-      right: 0;
-      transform: translateY(-50%);
       font-size: 0.8rem;
       color: #999;
       pointer-events: none;
@@ -298,10 +326,6 @@
     }
     .uv-row.uv-active .uv-verse-num { color: #64748b; font-weight: 600; }
     .uv-chapter-num {
-      position: absolute;
-      top: 50%;
-      right: -1.1rem;
-      transform: translateY(-50%);
       font-size: 0.8rem;
       color: #64748b;
       font-weight: 600;
@@ -413,6 +437,7 @@
   </div>
 
   <div id="userView">
+    <div id="userViewTitle"></div>
     <div id="userViewVerses">
       <div id="uvTrack"></div>
     </div>
@@ -608,6 +633,7 @@
       fab.textContent = '📖';
       fab.title = 'תצוגת משתמש';
       document.getElementById('userViewCaption').textContent = '';
+      document.getElementById('userViewTitle').textContent = '';
       document.getElementById('userViewCaption').style.display = 'none';
       lastCaptionSegId = null;
       uvVerses = [];
@@ -664,6 +690,8 @@
         const data = await res.json();
         clearDisplayedContent();
         lastData.srt = data.srt;
+        lastData.title = data.title || '';
+        document.getElementById('userViewTitle').textContent = lastData.title;
         srtSegments = parseSrt(data.srt);
         setupAudioPlayer(data.audioUrl);
         renderParallelVerses({ verses: data.verses, complete: data.complete, topics: data.topics });
@@ -935,9 +963,12 @@
       const track = document.getElementById('uvTrack');
       track.innerHTML = uvVerses.map((v, i) => `
         <div class="uv-row" data-idx="${i}">
-          <span class="uv-chapter-num"></span>
-          <span class="uv-verse-num">${v.verseNum != null ? numToHebrew(v.verseNum) : ''}</span>
+          <span class="uv-num-badge">
+            <span class="uv-chapter-num"></span>
+            <span class="uv-verse-num">${v.verseNum != null ? numToHebrew(v.verseNum) : ''}</span>
+          </span>
           <span class="uv-row-text">${escHtml(v.text)}</span>
+          <span class="uv-row-spacer" aria-hidden="true"></span>
           <div class="uv-meter"><div class="uv-meter-fill"></div></div>
         </div>`).join('');
       uvRowEls = [...track.querySelectorAll('.uv-row')];

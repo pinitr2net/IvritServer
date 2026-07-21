@@ -68,6 +68,7 @@ function resolveLectureFiles(slug) {
 
   return {
     book: meta.book,
+    title: meta.title || null,
     audioPath: path.join(dir, audioFile),
     captionsPath: path.join(dir, captionsFile),
     refsPath: path.join(dir, refsFile),
@@ -376,7 +377,7 @@ app.get('/lecture/:slug/data.json', async (req, res) => {
 
     const srt = fs.readFileSync(lecture.captionsPath, 'utf8');
 
-    res.json({ book: lecture.book, audioUrl: `/lecture/${slug}/audio`, srt, verses, complete, ...(topics && { topics }) });
+    res.json({ book: lecture.book, title: lecture.title, audioUrl: `/lecture/${slug}/audio`, srt, verses, complete, ...(topics && { topics }) });
   } catch (err) {
     console.error('lecture data error:', err.message);
     res.status(500).json({ error: err.message });
