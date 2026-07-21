@@ -1177,7 +1177,7 @@
       const targetIdx = uvCurrentIdx + direction;
       if (!uvVerses[targetIdx]) return;
       uvGestureCooldown = true;
-      uvSeekTo(targetIdx);
+      uvSeekTo(targetIdx, { pause: false });
       setTimeout(() => { uvGestureCooldown = false; }, 500);
     }
 
