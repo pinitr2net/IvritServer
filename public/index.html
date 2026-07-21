@@ -256,7 +256,7 @@
     #captionToggleBtn.uv-off { background: #94a3b8; }
     #userViewTitle {
       flex-shrink: 0;
-      height: 14.5rem;
+      height: 6.5rem;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -308,7 +308,6 @@
       display: flex;
       align-items: center;
       justify-content: flex-start;
-      gap: 0.5rem;
       white-space: nowrap;
     }
     .uv-row-text {
@@ -1025,10 +1024,11 @@
       const activeEl = idx !== null ? uvRowEls[idx] : undefined;
       if (activeEl) activeEl.classList.add('uv-active');
 
-      if (uvChapterBadgeIdx !== idx) {
+      const badgeIdx = idx === null ? null : Math.max(idx, 0);
+      if (uvChapterBadgeIdx !== badgeIdx) {
         if (uvChapterBadgeIdx !== null) uvSetChapterBadge(uvChapterBadgeIdx, false);
-        if (idx !== null) uvSetChapterBadge(idx, true);
-        uvChapterBadgeIdx = idx;
+        if (badgeIdx !== null) uvSetChapterBadge(badgeIdx, true);
+        uvChapterBadgeIdx = badgeIdx;
       }
 
       const minVisibleIdx = (idx !== null ? idx : 0) - prevVersesCount;
