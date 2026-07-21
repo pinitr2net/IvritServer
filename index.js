@@ -332,6 +332,43 @@ app.post('/claude', express.json(), async (req, res) => {
   }
 });
 
+app.get('/lectures/list', (req, res) => {
+  const entries = fs.readdirSync(LECTURES_DIR, { withFileTypes: true })
+    .filter(e => e.isDirectory() && LECTURE_SLUG_RE.test(e.name))
+    .map(e => e.name)
+    .sort();
+
+  const lectures = entries
+    .map(slug => ({ slug, lecture: resolveLectureFiles(slug) }))
+    .filter(({ lecture }) => lecture)
+    .map(({ slug, lecture }) => ({ slug, title: lecture.title || slug, url: `${BASE_URL}/lecture/${slug}` }));
+
+  const items = lectures
+    .map(({ slug, title, url }) => `<li><a href="${url}">${title}</a> <span class="slug">(${slug})</span></li>`)
+    .join('\n');
+
+  res.send(`<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>רשימת שיעורים</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+  li { margin: 0.6rem 0; }
+  a { color: #2563eb; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .slug { color: #888; font-size: 0.85em; }
+</style>
+</head>
+<body>
+<h1>שיעורים זמינים</h1>
+<ul>
+${items}
+</ul>
+</body>
+</html>`);
+});
+
 app.get('/lecture/debug/:slug', (req, res) => {
   if (!LECTURE_SLUG_RE.test(req.params.slug)) return res.status(404).send('Not found');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
