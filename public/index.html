@@ -254,46 +254,59 @@
     #captionToggleBtn.uv-off { background: #94a3b8; }
     #userViewVerses {
       flex: 1 1 auto;
-      display: grid;
-      grid-template-rows: 1fr auto 1fr;
+      position: relative;
       overflow: hidden;
-      padding: 0 2rem; max-width: 720px; width: 100%;
+      max-width: 720px; width: 100%;
       margin: 0 auto; box-sizing: border-box;
     }
-    .uv-line {
+    #uvTrack {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      padding: 0 2.4rem; box-sizing: border-box;
+      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      will-change: transform;
+    }
+    .uv-row {
+      position: relative;
       text-align: center;
       line-height: 1.7;
-      transition: opacity 0.2s ease;
-    }
-    .uv-prev, .uv-next {
-      font-size: 1.1rem;
+      font-size: 1.3rem;
       color: #333;
+      opacity: 0.35;
       cursor: pointer;
+      padding: 0.5rem 0 0.75rem;
+      transition: opacity 0.3s ease, color 0.3s ease;
     }
-    .uv-prev { opacity: 0.4; }
-    .uv-prev:hover { opacity: 0.65; }
-    .uv-next { align-self: start; padding-top: 0.75rem; padding-bottom: 0.6rem; position: relative; }
-    #uvNextText { opacity: 0.4; transition: opacity 0.2s ease; }
-    .uv-next:hover #uvNextText { opacity: 0.65; }
-    #uvPrevContainer {
-      align-self: end;
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-      padding-bottom: 0.75rem;
-    }
-    .uv-current {
-      position: relative;
-      align-self: center;
-      font-size: 1.6rem;
-      font-weight: bold;
+    .uv-row:hover { opacity: 0.55; }
+    .uv-row.uv-active {
+      opacity: 1;
       color: #1e293b;
-      padding-bottom: 0.9rem;
+      font-weight: bold;
+      cursor: default;
     }
-    .uv-current.uv-snap { animation: uvSnap 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
-    @keyframes uvSnap {
-      from { opacity: 0.3; transform: translateY(18px) scale(0.94); }
-      to   { opacity: 1;   transform: translateY(0) scale(1); }
+    .uv-row.uv-active:hover { opacity: 1; }
+    .uv-row.uv-hidden-hist { opacity: 0; pointer-events: none; }
+    .uv-verse-num {
+      position: absolute;
+      top: 50%;
+      right: 0;
+      transform: translateY(-50%);
+      font-size: 0.8rem;
+      color: #999;
+      pointer-events: none;
+      user-select: none;
+    }
+    .uv-row.uv-active .uv-verse-num { color: #64748b; font-weight: 600; }
+    .uv-chapter-num {
+      position: absolute;
+      top: 50%;
+      right: -1.1rem;
+      transform: translateY(-50%);
+      font-size: 0.8rem;
+      color: #64748b;
+      font-weight: 600;
+      pointer-events: none;
+      user-select: none;
     }
     .uv-meter {
       position: absolute;
@@ -302,6 +315,7 @@
       border-radius: 2px;
       background: rgba(0,0,0,0.08);
       overflow: hidden;
+      display: none;
     }
     .uv-meter-fill {
       width: 100%;
@@ -322,7 +336,7 @@
 <body>
   <div id="stickyPlayer"><audio id="srtPlayer" controls style="width:100%;"></audio></div>
   <button id="viewToggleFab" disabled onclick="toggleUserView()" title="החלף תצוגה">📖</button>
-  <button id="captionToggleBtn" onclick="toggleCaptions()" title="הסתר כתוביות">💬</button>
+  <button id="captionToggleBtn" class="uv-off" onclick="toggleCaptions()" title="הצג כתוביות">💬</button>
   <div class="card">
     <h1>תמלול עברית</h1>
     <input type="file" id="audioFile" accept="audio/*,video/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,.opus,.wma,.mp4,.mov,.avi,.mkv,.webm">
@@ -354,6 +368,9 @@
           <option value="current">מתחת לפסוק הנוכחי (סוף הפסוק)</option>
           <option value="next">מתחת לפסוק הבא (תחילת הפסוק הבא)</option>
         </select>
+      </label>
+      <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;color:#555;cursor:pointer;user-select:none;">
+        <input type="checkbox" id="pauseBeforeVerseCheckbox" onchange="setPauseBeforeVerse(this.checked)" style="cursor:pointer;"> עצור מעט אחרי שכל פסוק מתחיל (תצוגת משתמש)
       </label>
       <span id="parallelStatus" style="font-size:0.85rem;color:#888;"></span>
     </div>
@@ -397,21 +414,9 @@
 
   <div id="userView">
     <div id="userViewVerses">
-      <div id="uvPrevContainer">
-        <div class="uv-line uv-prev" id="uvPrev3"></div>
-        <div class="uv-line uv-prev" id="uvPrev2"></div>
-        <div class="uv-line uv-prev" id="uvPrev1"></div>
-      </div>
-      <div class="uv-line uv-current" id="uvCurrent">
-        <span id="uvCurrentText"></span>
-        <div class="uv-meter" id="uvMeterCurrent"><div class="uv-meter-fill" id="uvMeterFillCurrent"></div></div>
-      </div>
-      <div class="uv-line uv-next" id="uvNext">
-        <span id="uvNextText"></span>
-        <div class="uv-meter" id="uvMeterNext"><div class="uv-meter-fill" id="uvMeterFillNext"></div></div>
-      </div>
+      <div id="uvTrack"></div>
     </div>
-    <div id="userViewCaption"></div>
+    <div id="userViewCaption" style="display:none;"></div>
   </div>
 
   <script>
@@ -424,25 +429,46 @@
     let lastCaptionSegId = null;
     let uvVerses = [];
     let uvCurrentIdx = null; // null = not yet rendered; forces an initial render even if idx computes to -1
-    let captionsVisible = true;
+    let uvGestureCooldown = false;
+    let uvTouchStartY = null;
+    let uvRowEls = [];
+    let uvRowChapterEls = [];
+    let uvRowCenters = [];
+    let uvMeterRowIdx = null;
+    let uvChapterBadgeIdx = null;
+    let captionsVisible = false;
     let prevVersesCount = parseInt(localStorage.getItem('uvPrevVersesCount') || '1', 10);
     document.getElementById('prevVersesSelect').value = String(prevVersesCount);
     let showMeter = localStorage.getItem('uvShowMeter') !== 'false';
     document.getElementById('showMeterCheckbox').checked = showMeter;
-    let meterPosition = localStorage.getItem('uvMeterPosition') === 'next' ? 'next' : 'current';
+    let meterPosition = localStorage.getItem('uvMeterPosition') === 'current' ? 'current' : 'next';
     document.getElementById('meterPositionSelect').value = meterPosition;
+    let pauseBeforeVerse = localStorage.getItem('uvPauseBeforeVerse') === 'true';
+    document.getElementById('pauseBeforeVerseCheckbox').checked = pauseBeforeVerse;
+    let uvPauseHandledIdx = null;
     applyMeterVisibility();
     updateCacheButtons();
 
     function applyMeterVisibility() {
-      document.getElementById('uvMeterCurrent').style.display = (showMeter && meterPosition === 'current') ? '' : 'none';
-      document.getElementById('uvMeterNext').style.display = (showMeter && meterPosition === 'next') ? '' : 'none';
+      if (uvMeterRowIdx !== null && uvRowEls[uvMeterRowIdx]) {
+        const old = uvRowEls[uvMeterRowIdx].querySelector('.uv-meter');
+        if (old) old.style.display = 'none';
+      }
+      uvMeterRowIdx = null;
+      if (!showMeter || uvCurrentIdx === null) return;
+      const targetIdx = meterPosition === 'next' ? uvCurrentIdx + 1 : uvCurrentIdx;
+      const row = uvRowEls[targetIdx];
+      if (!row) return;
+      const meterEl = row.querySelector('.uv-meter');
+      if (!meterEl) return;
+      meterEl.style.display = 'block';
+      uvMeterRowIdx = targetIdx;
     }
 
     function setPrevVersesCount(n) {
       prevVersesCount = parseInt(n, 10);
       localStorage.setItem('uvPrevVersesCount', String(prevVersesCount));
-      if (userViewActive) renderUvSlots();
+      if (userViewActive) renderUvActive();
     }
 
     function setShowMeter(checked) {
@@ -452,6 +478,12 @@
       if (userViewActive) {
         if (checked) startUvMeterLoop(); else stopUvMeterLoop();
       }
+    }
+
+    function setPauseBeforeVerse(checked) {
+      pauseBeforeVerse = checked;
+      localStorage.setItem('uvPauseBeforeVerse', String(checked));
+      uvPauseHandledIdx = null;
     }
 
     function setMeterPosition(value) {
@@ -567,6 +599,8 @@
       document.getElementById('status').textContent = '';
       userViewActive = false;
       stopUvMeterLoop();
+      stopUvPauseWatchLoop();
+      stopUvScrollLoop();
       document.getElementById('userView').style.display = 'none';
       document.querySelector('.card').style.display = '';
       const fab = document.getElementById('viewToggleFab');
@@ -574,20 +608,22 @@
       fab.textContent = '📖';
       fab.title = 'תצוגת משתמש';
       document.getElementById('userViewCaption').textContent = '';
-      document.getElementById('userViewCaption').style.display = '';
+      document.getElementById('userViewCaption').style.display = 'none';
       lastCaptionSegId = null;
       uvVerses = [];
       uvCurrentIdx = null;
-      document.getElementById('uvPrev1').textContent = '';
-      document.getElementById('uvPrev2').textContent = '';
-      document.getElementById('uvPrev3').textContent = '';
-      document.getElementById('uvCurrentText').textContent = '';
-      document.getElementById('uvNextText').textContent = '';
-      captionsVisible = true;
+      uvPauseHandledIdx = null;
+      uvRowEls = [];
+      uvRowChapterEls = [];
+      uvRowCenters = [];
+      uvMeterRowIdx = null;
+      uvChapterBadgeIdx = null;
+      document.getElementById('uvTrack').innerHTML = '';
+      captionsVisible = false;
       const captionBtn = document.getElementById('captionToggleBtn');
       captionBtn.style.display = 'none';
-      captionBtn.classList.remove('uv-off');
-      captionBtn.title = 'הסתר כתוביות';
+      captionBtn.classList.add('uv-off');
+      captionBtn.title = 'הצג כתוביות';
     }
 
     function applyAudioFile(file) {
@@ -631,9 +667,19 @@
         srtSegments = parseSrt(data.srt);
         setupAudioPlayer(data.audioUrl);
         renderParallelVerses({ verses: data.verses, complete: data.complete, topics: data.topics });
+        toggleUserView();
       } catch (e) {
         document.getElementById('status').textContent = 'שגיאת רשת: ' + e.message;
       }
+    }
+
+    function numToHebrew(n) {
+      if (n === 15) return 'טו';
+      if (n === 16) return 'טז';
+      const vals = [[400,'ת'],[300,'ש'],[200,'ר'],[100,'ק'],[90,'צ'],[80,'פ'],[70,'ע'],[60,'ס'],[50,'נ'],[40,'מ'],[30,'ל'],[20,'כ'],[10,'י'],[9,'ט'],[8,'ח'],[7,'ז'],[6,'ו'],[5,'ה'],[4,'ד'],[3,'ג'],[2,'ב'],[1,'א']];
+      let result = '';
+      for (const [val, ch] of vals) { while (n >= val) { result += ch; n -= val; } }
+      return result;
     }
 
     function escHtml(s) {
@@ -861,8 +907,12 @@
         renderUserView();
         updateUserViewPlayback();
         if (showMeter) startUvMeterLoop();
+        startUvPauseWatchLoop();
+        startUvScrollLoop();
       } else {
         stopUvMeterLoop();
+        stopUvPauseWatchLoop();
+        stopUvScrollLoop();
       }
     }
 
@@ -877,31 +927,92 @@
     function renderUserView() {
       uvVerses = lastVersesData
         .filter(v => !v.missing && v.verseText && v.startTime)
-        .map(v => ({ text: v.verseText, sec: srtTimeSec(v.startTime + ',000') }));
+        .map(v => ({ text: v.verseText, sec: srtTimeSec(v.startTime + ',000'), verseNum: v.verseNum, chapterNum: v.chapterNum }));
       uvCurrentIdx = null;
+      uvPauseHandledIdx = null;
+      uvMeterRowIdx = null;
+      uvChapterBadgeIdx = null;
+      const track = document.getElementById('uvTrack');
+      track.innerHTML = uvVerses.map((v, i) => `
+        <div class="uv-row" data-idx="${i}">
+          <span class="uv-chapter-num"></span>
+          <span class="uv-verse-num">${v.verseNum != null ? numToHebrew(v.verseNum) : ''}</span>
+          <span class="uv-row-text">${escHtml(v.text)}</span>
+          <div class="uv-meter"><div class="uv-meter-fill"></div></div>
+        </div>`).join('');
+      uvRowEls = [...track.querySelectorAll('.uv-row')];
+      uvRowChapterEls = uvRowEls.map(el => el.querySelector('.uv-chapter-num'));
+      uvMeasureRows();
+      uvPositionTrack();
     }
 
-    function renderUvSlots() {
-      for (let distance = 1; distance <= 3; distance++) {
-        const el = document.getElementById('uvPrev' + distance);
-        const show = distance <= prevVersesCount;
-        const v = show ? uvVerses[uvCurrentIdx - distance] : undefined;
-        el.textContent = v ? v.text : '';
-        el.style.display = v ? '' : 'none';
+    function uvMeasureRows() {
+      uvRowCenters = uvRowEls.map(el => el.offsetTop + el.offsetHeight / 2);
+    }
+
+    function uvComputeRowCenter() {
+      const idx = (uvCurrentIdx === null || uvCurrentIdx < 0) ? 0 : uvCurrentIdx;
+      return uvRowCenters[idx] != null ? uvRowCenters[idx] : 0;
+    }
+
+    function uvPositionTrack() {
+      if (!uvRowCenters.length) return;
+      const track = document.getElementById('uvTrack');
+      const viewport = document.getElementById('userViewVerses');
+      const centerY = viewport.clientHeight / 2;
+      track.style.transform = `translateY(${centerY - uvComputeRowCenter()}px)`;
+    }
+
+    let uvScrollRaf = null;
+    function uvScrollTick() {
+      uvMeasureRows();
+      uvPositionTrack();
+      uvScrollRaf = requestAnimationFrame(uvScrollTick);
+    }
+    function startUvScrollLoop() {
+      if (uvScrollRaf !== null) return;
+      uvScrollRaf = requestAnimationFrame(uvScrollTick);
+    }
+    function stopUvScrollLoop() {
+      if (uvScrollRaf !== null) { cancelAnimationFrame(uvScrollRaf); uvScrollRaf = null; }
+    }
+
+    function uvSetChapterBadge(i, show) {
+      const el = uvRowChapterEls[i];
+      const v = uvVerses[i];
+      if (!el) return;
+      el.textContent = (show && v && v.chapterNum != null) ? numToHebrew(v.chapterNum) : '';
+    }
+
+    function uvApplyVisibleWindow(idx) {
+      uvRowEls.forEach(el => el.classList.remove('uv-active'));
+      const activeEl = idx !== null ? uvRowEls[idx] : undefined;
+      if (activeEl) activeEl.classList.add('uv-active');
+
+      if (uvChapterBadgeIdx !== idx) {
+        if (uvChapterBadgeIdx !== null) uvSetChapterBadge(uvChapterBadgeIdx, false);
+        if (idx !== null) uvSetChapterBadge(idx, true);
+        uvChapterBadgeIdx = idx;
       }
-      const cur = uvVerses[uvCurrentIdx];
-      const next = uvVerses[uvCurrentIdx + 1];
-      const curEl = document.getElementById('uvCurrent');
-      document.getElementById('uvCurrentText').textContent = cur ? cur.text : '';
-      document.getElementById('uvNextText').textContent = next ? next.text : '';
-      curEl.classList.remove('uv-snap');
-      void curEl.offsetWidth;
-      curEl.classList.add('uv-snap');
+
+      const minVisibleIdx = (idx !== null ? idx : 0) - prevVersesCount;
+      const maxVisibleIdx = (idx !== null ? idx : 0) + 1;
+      uvRowEls.forEach((el, i) => {
+        el.classList.toggle('uv-hidden-hist', i < minVisibleIdx || i > maxVisibleIdx);
+      });
+    }
+
+    function renderUvActive() {
+      uvApplyVisibleWindow(uvCurrentIdx);
+      applyMeterVisibility();
     }
 
     let uvMeterRaf = null;
     function updateUvMeter() {
-      const fill = document.getElementById(meterPosition === 'next' ? 'uvMeterFillNext' : 'uvMeterFillCurrent');
+      if (uvMeterRowIdx === null) return;
+      const row = uvRowEls[uvMeterRowIdx];
+      if (!row) return;
+      const fill = row.querySelector('.uv-meter-fill');
       const cur = uvCurrentIdx !== null ? uvVerses[uvCurrentIdx] : null;
       if (!cur) { fill.style.transform = 'scaleX(0)'; return; }
       const audio = document.getElementById('srtPlayer');
@@ -918,22 +1029,93 @@
     }
     function stopUvMeterLoop() {
       if (uvMeterRaf !== null) { cancelAnimationFrame(uvMeterRaf); uvMeterRaf = null; }
-      document.getElementById('uvMeterFillCurrent').style.transform = 'scaleX(0)';
-      document.getElementById('uvMeterFillNext').style.transform = 'scaleX(0)';
+      if (uvMeterRowIdx !== null && uvRowEls[uvMeterRowIdx]) {
+        const fill = uvRowEls[uvMeterRowIdx].querySelector('.uv-meter-fill');
+        if (fill) fill.style.transform = 'scaleX(0)';
+      }
+    }
+
+    const UV_PAUSE_AFTER_VERSE_START_SEC = 0.3;
+    let uvPauseWatchRaf = null;
+    function uvPauseWatchTick() {
+      if (pauseBeforeVerse && uvCurrentIdx !== null) {
+        const audio = document.getElementById('srtPlayer');
+        const cur = uvVerses[uvCurrentIdx];
+        const pauseAt = cur ? cur.sec + UV_PAUSE_AFTER_VERSE_START_SEC : null;
+        if (pauseAt !== null && !audio.paused && audio.currentTime >= pauseAt && uvPauseHandledIdx !== uvCurrentIdx) {
+          audio.pause();
+          audio.currentTime = pauseAt;
+          uvPauseHandledIdx = uvCurrentIdx;
+        }
+      }
+      uvPauseWatchRaf = requestAnimationFrame(uvPauseWatchTick);
+    }
+    function startUvPauseWatchLoop() {
+      if (uvPauseWatchRaf !== null) return;
+      uvPauseWatchRaf = requestAnimationFrame(uvPauseWatchTick);
+    }
+    function stopUvPauseWatchLoop() {
+      if (uvPauseWatchRaf !== null) { cancelAnimationFrame(uvPauseWatchRaf); uvPauseWatchRaf = null; }
     }
 
     function uvSeekTo(idx) {
       const v = uvVerses[idx];
       if (!v) return;
       const audio = document.getElementById('srtPlayer');
+      audio.pause();
       audio.currentTime = v.sec;
-      audio.play();
+      uvCurrentIdx = idx;
+      renderUvActive();
     }
 
-    document.getElementById('uvPrev1').addEventListener('click', () => uvSeekTo(uvCurrentIdx - 1));
-    document.getElementById('uvPrev2').addEventListener('click', () => uvSeekTo(uvCurrentIdx - 2));
-    document.getElementById('uvPrev3').addEventListener('click', () => uvSeekTo(uvCurrentIdx - 3));
-    document.getElementById('uvNext').addEventListener('click', () => uvSeekTo(uvCurrentIdx + 1));
+    document.getElementById('uvTrack').addEventListener('click', (e) => {
+      const row = e.target.closest('.uv-row');
+      if (!row) return;
+      const idx = parseInt(row.dataset.idx, 10);
+      if (Number.isNaN(idx) || idx === uvCurrentIdx) return;
+      uvSeekTo(idx);
+    });
+
+    function uvNavigate(direction) {
+      if (uvGestureCooldown || uvCurrentIdx === null) return;
+      const targetIdx = uvCurrentIdx + direction;
+      if (!uvVerses[targetIdx]) return;
+      uvGestureCooldown = true;
+      uvSeekTo(targetIdx);
+      setTimeout(() => { uvGestureCooldown = false; }, 500);
+    }
+
+    const userViewEl = document.getElementById('userView');
+    userViewEl.addEventListener('wheel', (e) => {
+      if (!userViewActive) return;
+      e.preventDefault();
+      uvNavigate(e.deltaY > 0 ? 1 : -1);
+    }, { passive: false });
+
+    userViewEl.addEventListener('touchstart', (e) => {
+      if (!userViewActive) return;
+      uvTouchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    userViewEl.addEventListener('touchmove', (e) => {
+      if (!userViewActive || uvTouchStartY === null) return;
+      e.preventDefault();
+    }, { passive: false });
+
+    userViewEl.addEventListener('touchend', (e) => {
+      if (!userViewActive || uvTouchStartY === null) return;
+      const deltaY = uvTouchStartY - e.changedTouches[0].clientY;
+      uvTouchStartY = null;
+      const SWIPE_THRESHOLD = 40;
+      if (Math.abs(deltaY) < SWIPE_THRESHOLD) return;
+      uvNavigate(deltaY > 0 ? 1 : -1);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (!userViewActive) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); uvNavigate(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); uvNavigate(-1); }
+    });
 
     function updateUserViewPlayback() {
       if (!userViewActive) return;
@@ -954,7 +1136,7 @@
       }
       if (idx !== uvCurrentIdx) {
         uvCurrentIdx = idx;
-        renderUvSlots();
+        renderUvActive();
       }
     }
 
