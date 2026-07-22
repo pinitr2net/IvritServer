@@ -319,7 +319,6 @@
     .uv-row.uv-active {
       opacity: 1;
       color: #1e293b;
-      font-weight: bold;
       cursor: default;
     }
     .uv-row.uv-active:hover { opacity: 1; }
@@ -494,7 +493,7 @@
     document.getElementById('prevVersesSelect').value = String(prevVersesCount);
     let showMeter = localStorage.getItem('uvShowMeter') !== 'false';
     document.getElementById('showMeterCheckbox').checked = showMeter;
-    let meterPosition = localStorage.getItem('uvMeterPosition') === 'current' ? 'current' : 'next';
+    let meterPosition = localStorage.getItem('uvMeterPosition') === 'next' ? 'next' : 'current';
     document.getElementById('meterPositionSelect').value = meterPosition;
     let pauseBeforeVerse = localStorage.getItem('uvPauseBeforeVerse') === 'true';
     document.getElementById('pauseBeforeVerseCheckbox').checked = pauseBeforeVerse;
