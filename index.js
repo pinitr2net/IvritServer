@@ -393,8 +393,10 @@ app.get('/lecture/:slug/audio', (req, res) => {
 
   // Range מטופל כאן באופן ידני (בלי ETag/Last-Modified) כדי למנוע באג ידוע ב-Safari/iOS,
   // שבו קאש הדפדפן משחזר תגובה שמורה מבייט 0 במקום לכבד Range חדש בבקשת seek.
+  // Cache-Control: no-store מונע מספארי לשמור עותק ישן של הקובץ (למשל מלפני המרה ל-CBR)
+  // ולהמשיך להגיש אותו גם אחרי שה-mp3 בדיסק תוקן.
   if (!range) {
-    res.writeHead(200, { 'Content-Type': contentType, 'Content-Length': fileSize, 'Accept-Ranges': 'bytes' });
+    res.writeHead(200, { 'Content-Type': contentType, 'Content-Length': fileSize, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-store' });
     fs.createReadStream(lecture.audioPath).pipe(res);
     return;
   }
@@ -412,6 +414,7 @@ app.get('/lecture/:slug/audio', (req, res) => {
     'Accept-Ranges': 'bytes',
     'Content-Length': end - start + 1,
     'Content-Type': contentType,
+    'Cache-Control': 'no-store',
   });
   fs.createReadStream(lecture.audioPath, { start, end }).pipe(res);
 });
