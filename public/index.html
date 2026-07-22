@@ -366,6 +366,9 @@
     #userView.uv-sequence-mode .uv-num-badge {
       height: calc(1.05rem * 1.5);
     }
+    #userView.uv-sequence-mode .uv-row-text {
+      text-align: right;
+    }
     .uv-meter {
       position: absolute;
       left: 0; right: 0; bottom: 0;
@@ -1087,18 +1090,46 @@
       const activeEl = idx !== null ? uvRowEls[idx] : undefined;
       if (activeEl) activeEl.classList.add('uv-active');
 
-      const badgeIdx = idx === null ? null : Math.max(idx, 0);
+      const badgeIdx = (idx === null || sequenceMode) ? null : Math.max(idx, 0);
       if (uvChapterBadgeIdx !== badgeIdx) {
         if (uvChapterBadgeIdx !== null) uvSetChapterBadge(uvChapterBadgeIdx, false);
         if (badgeIdx !== null) uvSetChapterBadge(badgeIdx, true);
         uvChapterBadgeIdx = badgeIdx;
       }
 
-      const minVisibleIdx = (idx !== null ? idx : 0) - prevVersesCount;
-      const maxVisibleIdx = (idx !== null ? idx : 0) + 1;
+      let minVisibleIdx, maxVisibleIdx;
+      if (sequenceMode) {
+        const win = uvComputeDynamicWindow(idx !== null ? idx : 0);
+        minVisibleIdx = win.minVisibleIdx;
+        maxVisibleIdx = win.maxVisibleIdx;
+      } else {
+        minVisibleIdx = (idx !== null ? idx : 0) - prevVersesCount;
+        maxVisibleIdx = (idx !== null ? idx : 0) + 1;
+      }
       uvRowEls.forEach((el, i) => {
         el.classList.toggle('uv-hidden-hist', i < minVisibleIdx || i > maxVisibleIdx);
       });
+    }
+
+    function uvComputeDynamicWindow(idx) {
+      const viewport = document.getElementById('userViewVerses');
+      const spaceAbove = viewport.clientHeight * UV_ANCHOR_RATIO;
+      const spaceBelow = viewport.clientHeight - spaceAbove;
+      let before = 0, used = 0;
+      for (let i = idx - 1; i >= 0; i--) {
+        const h = uvRowEls[i] ? uvRowEls[i].offsetHeight : 0;
+        if (used + h > spaceAbove) break;
+        used += h;
+        before++;
+      }
+      let after = 0; used = 0;
+      for (let i = idx + 1; i < uvRowEls.length; i++) {
+        const h = uvRowEls[i] ? uvRowEls[i].offsetHeight : 0;
+        if (used + h > spaceBelow) break;
+        used += h;
+        after++;
+      }
+      return { minVisibleIdx: idx - before, maxVisibleIdx: idx + after };
     }
 
     function renderUvActive() {
