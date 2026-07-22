@@ -1197,10 +1197,15 @@
       const v = uvVerses[idx];
       if (!v) return;
       const audio = document.getElementById('srtPlayer');
-      if (opts.pause !== false) audio.pause();
+      // תמיד לעצור לפני קביעת currentTime - קביעתו בזמן ניגון פעיל לא אמינה ב-Safari/iOS
+      // (הסיבה שהניווט "התעלם" מהתזוזה והמשיך מהמקום הקודם). ממשיכים לנגן אחרי הסיק אם
+      // opts.pause===false וזה ניגן קודם, כדי לשמר את הרצף הקיים לניווט בין פסוקים.
+      const wasPlaying = !audio.paused;
+      audio.pause();
       audio.currentTime = v.sec;
       uvCurrentIdx = idx;
       renderUvActive();
+      if (opts.pause === false && wasPlaying) audio.play();
     }
 
     document.getElementById('uvTrack').addEventListener('click', (e) => {
