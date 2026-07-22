@@ -358,6 +358,14 @@
       pointer-events: none;
       user-select: none;
     }
+    #userView.uv-sequence-mode .uv-row {
+      font-size: 1.05rem;
+      line-height: 1.5;
+      padding: 0.35rem 0 0.5rem;
+    }
+    #userView.uv-sequence-mode .uv-num-badge {
+      height: calc(1.05rem * 1.5);
+    }
     .uv-meter {
       position: absolute;
       left: 0; right: 0; bottom: 0;
@@ -498,6 +506,8 @@
     let pauseBeforeVerse = localStorage.getItem('uvPauseBeforeVerse') === 'true';
     document.getElementById('pauseBeforeVerseCheckbox').checked = pauseBeforeVerse;
     let uvPauseHandledIdx = null;
+    const sequenceMode = new URLSearchParams(location.search).get('rezef') === '1';
+    if (sequenceMode) document.getElementById('userView').classList.add('uv-sequence-mode');
     applyMeterVisibility();
     updateCacheButtons();
 
