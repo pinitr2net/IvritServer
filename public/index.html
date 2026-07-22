@@ -1050,18 +1050,22 @@
       uvRowCenters = uvRowEls.map(el => el.offsetTop + el.offsetHeight / 2);
     }
 
-    function uvComputeRowCenter() {
-      const idx = (uvCurrentIdx === null || uvCurrentIdx < 0) ? 0 : uvCurrentIdx;
-      return uvRowCenters[idx] != null ? uvRowCenters[idx] : 0;
-    }
-
     const UV_ANCHOR_RATIO = 0.35; // חלק מגובה ה-viewport שבו "יושבת" השורה הפעילה (0.5 = מרכז מדויק)
     function uvPositionTrack() {
       if (!uvRowCenters.length) return;
       const track = document.getElementById('uvTrack');
       const viewport = document.getElementById('userViewVerses');
-      const centerY = viewport.clientHeight * UV_ANCHOR_RATIO;
-      track.style.transform = `translateY(${centerY - uvComputeRowCenter()}px)`;
+      const idx = (uvCurrentIdx === null || uvCurrentIdx < 0) ? 0 : uvCurrentIdx;
+      const rowCenter = uvRowCenters[idx] != null ? uvRowCenters[idx] : 0;
+      let centerY = viewport.clientHeight * UV_ANCHOR_RATIO;
+      if (sequenceMode) {
+        // אין להשאיר רווח ריק מעל אם אין מספיק פסוקים קודמים למלא אותו (למשל בתחילת השיעור) -
+        // העוגן מוגבל לגובה התוכן שבאמת קיים מעל, לא לגובה קבוע
+        const win = uvComputeDynamicWindow(idx);
+        const topRow = uvRowEls[win.minVisibleIdx];
+        if (topRow) centerY = Math.min(centerY, rowCenter - topRow.offsetTop);
+      }
+      track.style.transform = `translateY(${centerY - rowCenter}px)`;
     }
 
     let uvScrollRaf = null;
