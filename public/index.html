@@ -499,6 +499,8 @@
     let uvRowCenters = [];
     let uvMeterRowIdx = null;
     let uvChapterBadgeIdx = null;
+    let uvTopics = [];
+    let uvCurrentTopicTitle = null;
     let captionsVisible = false;
     let prevVersesCount = parseInt(localStorage.getItem('uvPrevVersesCount') || '1', 10);
     document.getElementById('prevVersesSelect').value = String(prevVersesCount);
@@ -685,6 +687,8 @@
       uvRowCenters = [];
       uvMeterRowIdx = null;
       uvChapterBadgeIdx = null;
+      uvTopics = [];
+      uvCurrentTopicTitle = null;
       document.getElementById('uvTrack').innerHTML = '';
       captionsVisible = false;
       const captionBtn = document.getElementById('captionToggleBtn');
@@ -734,7 +738,7 @@
         clearDisplayedContent();
         lastData.srt = data.srt;
         lastData.title = data.title || '';
-        document.getElementById('userViewTitle').textContent = lastData.title;
+        document.getElementById('userViewTitle').textContent = sequenceMode ? '' : lastData.title;
         srtSegments = parseSrt(data.srt);
         setupAudioPlayer(data.audioUrl);
         setupLecturePositionPersistence(slug);
@@ -1044,6 +1048,36 @@
       uvRowChapterEls = uvRowEls.map(el => el.querySelector('.uv-chapter-num'));
       uvMeasureRows();
       uvPositionTrack();
+      if (sequenceMode) {
+        uvBuildTopics();
+        uvCurrentTopicTitle = null;
+        uvUpdateStickyChapter(document.getElementById('srtPlayer').currentTime || 0);
+      }
+    }
+
+    function uvBuildTopics() {
+      uvTopics = (lastTopicsData || [])
+        .filter(t => t.startTime)
+        .map(t => ({ sec: srtTimeSec(t.startTime + ',000'), title: t.title }))
+        .sort((a, b) => a.sec - b.sec);
+    }
+
+    function uvGetTopicTitleAt(t) {
+      if (!uvTopics.length) return '';
+      let cur = null;
+      for (const topic of uvTopics) {
+        if (topic.sec <= t) cur = topic; else break;
+      }
+      return (cur || uvTopics[0]).title;
+    }
+
+    function uvUpdateStickyChapter(t) {
+      if (!sequenceMode) return;
+      const title = uvGetTopicTitleAt(t);
+      if (title !== uvCurrentTopicTitle) {
+        uvCurrentTopicTitle = title;
+        document.getElementById('userViewTitle').textContent = title;
+      }
     }
 
     function uvMeasureRows() {
@@ -1119,18 +1153,21 @@
       const viewport = document.getElementById('userViewVerses');
       const spaceAbove = viewport.clientHeight * UV_ANCHOR_RATIO;
       const spaceBelow = viewport.clientHeight - spaceAbove;
-      let before = 0, used = 0;
+      let before = 0, usedAbove = 0;
       for (let i = idx - 1; i >= 0; i--) {
         const h = uvRowEls[i] ? uvRowEls[i].offsetHeight : 0;
-        if (used + h > spaceAbove) break;
-        used += h;
+        if (usedAbove + h > spaceAbove) break;
+        usedAbove += h;
         before++;
       }
-      let after = 0; used = 0;
+      // כשאין מספיק פסוקים קודמים למלא את spaceAbove (למשל בתחילת השיעור), הרווח שנשאר פנוי
+      // עובר ל"אחרי" - כדי שהתוכן ימלא את כל העמוד מההתחלה, לא רק לאחר שמצטברים מספיק פסוקים קודמים
+      const spaceBelowEffective = spaceBelow + (spaceAbove - usedAbove);
+      let after = 0, usedBelow = 0;
       for (let i = idx + 1; i < uvRowEls.length; i++) {
         const h = uvRowEls[i] ? uvRowEls[i].offsetHeight : 0;
-        if (used + h > spaceBelow) break;
-        used += h;
+        if (usedBelow + h > spaceBelowEffective) break;
+        usedBelow += h;
         after++;
       }
       return { minVisibleIdx: idx - before, maxVisibleIdx: idx + after };
@@ -1205,6 +1242,7 @@
       audio.currentTime = v.sec;
       uvCurrentIdx = idx;
       renderUvActive();
+      uvUpdateStickyChapter(v.sec);
       if (opts.pause === false && wasPlaying) audio.play();
     }
 
@@ -1283,6 +1321,7 @@
         uvCurrentIdx = idx;
         renderUvActive();
       }
+      uvUpdateStickyChapter(t);
     }
 
     document.getElementById('srtPlayer').addEventListener('timeupdate', updateUserViewPlayback);

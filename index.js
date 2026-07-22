@@ -456,7 +456,7 @@ app.get('/lecture/:slug/data.json', async (req, res) => {
 
     const srt = fs.readFileSync(lecture.captionsPath, 'utf8');
 
-    res.json({ book: lecture.book, title: lecture.title, audioUrl: `/lecture/${slug}/audio`, srt, verses, complete });
+    res.json({ book: lecture.book, title: lecture.title, audioUrl: `/lecture/${slug}/audio`, srt, verses, complete, ...(topics !== undefined && { topics }) });
   } catch (err) {
     console.error('lecture data error:', err.message);
     res.status(500).json({ error: err.message });
