@@ -499,8 +499,7 @@
     let uvRowCenters = [];
     let uvMeterRowIdx = null;
     let uvChapterBadgeIdx = null;
-    let uvTopics = [];
-    let uvCurrentTopicTitle = null;
+    let uvCurrentChapterNum = null;
     let captionsVisible = false;
     let prevVersesCount = parseInt(localStorage.getItem('uvPrevVersesCount') || '1', 10);
     document.getElementById('prevVersesSelect').value = String(prevVersesCount);
@@ -687,8 +686,7 @@
       uvRowCenters = [];
       uvMeterRowIdx = null;
       uvChapterBadgeIdx = null;
-      uvTopics = [];
-      uvCurrentTopicTitle = null;
+      uvCurrentChapterNum = null;
       document.getElementById('uvTrack').innerHTML = '';
       captionsVisible = false;
       const captionBtn = document.getElementById('captionToggleBtn');
@@ -773,6 +771,17 @@
       audio.addEventListener('pause', () => localStorage.setItem(key, String(audio.currentTime)));
       window.addEventListener('beforeunload', () => localStorage.setItem(key, String(audio.currentTime)));
     }
+
+    const BOOK_HE = {
+      Genesis: 'בראשית', Exodus: 'שמות', Leviticus: 'ויקרא', Numbers: 'במדבר', Deuteronomy: 'דברים',
+      Joshua: 'יהושע', Judges: 'שופטים', 'I Samuel': 'שמואל א', 'II Samuel': 'שמואל ב',
+      'I Kings': 'מלכים א', 'II Kings': 'מלכים ב', Isaiah: 'ישעיהו', Jeremiah: 'ירמיהו', Ezekiel: 'יחזקאל',
+      Hosea: 'הושע', Joel: 'יואל', Amos: 'עמוס', Obadiah: 'עובדיה', Jonah: 'יונה', Micah: 'מיכה',
+      Nahum: 'נחום', Habakkuk: 'חבקוק', Zephaniah: 'צפניה', Haggai: 'חגי', Zechariah: 'זכריה', Malachi: 'מלאכי',
+      Psalms: 'תהילים', Proverbs: 'משלי', Job: 'איוב', 'Song of Songs': 'שיר השירים', Ruth: 'רות',
+      Lamentations: 'איכה', Ecclesiastes: 'קהלת', Esther: 'אסתר', Daniel: 'דניאל', Ezra: 'עזרא',
+      Nehemiah: 'נחמיה', 'I Chronicles': 'דברי הימים א', 'II Chronicles': 'דברי הימים ב'
+    };
 
     function numToHebrew(n) {
       if (n === 15) return 'טו';
@@ -1028,7 +1037,7 @@
     function renderUserView() {
       uvVerses = lastVersesData
         .filter(v => !v.missing && v.verseText && v.startTime)
-        .map(v => ({ text: v.verseText, sec: srtTimeSec(v.startTime + ',000'), verseNum: v.verseNum, chapterNum: v.chapterNum }));
+        .map(v => ({ text: v.verseText, sec: srtTimeSec(v.startTime + ',000'), verseNum: v.verseNum, chapterNum: v.chapterNum, book: v.book }));
       uvCurrentIdx = null;
       uvPauseHandledIdx = null;
       uvMeterRowIdx = null;
@@ -1049,34 +1058,24 @@
       uvMeasureRows();
       uvPositionTrack();
       if (sequenceMode) {
-        uvBuildTopics();
-        uvCurrentTopicTitle = null;
-        uvUpdateStickyChapter(document.getElementById('srtPlayer').currentTime || 0);
+        uvCurrentChapterNum = null;
+        uvUpdateStickyChapter(uvCurrentIdx);
       }
     }
 
-    function uvBuildTopics() {
-      uvTopics = (lastTopicsData || [])
-        .filter(t => t.startTime)
-        .map(t => ({ sec: srtTimeSec(t.startTime + ',000'), title: t.title }))
-        .sort((a, b) => a.sec - b.sec);
-    }
-
-    function uvGetTopicTitleAt(t) {
-      if (!uvTopics.length) return '';
-      let cur = null;
-      for (const topic of uvTopics) {
-        if (topic.sec <= t) cur = topic; else break;
-      }
-      return (cur || uvTopics[0]).title;
-    }
-
-    function uvUpdateStickyChapter(t) {
+    function uvUpdateStickyChapter(idx) {
       if (!sequenceMode) return;
-      const title = uvGetTopicTitleAt(t);
-      if (title !== uvCurrentTopicTitle) {
-        uvCurrentTopicTitle = title;
-        document.getElementById('userViewTitle').textContent = title;
+      const chapIdx = idx === null ? 0 : Math.max(idx, 0);
+      const v = uvVerses[chapIdx];
+      const chapterNum = v && v.chapterNum != null ? v.chapterNum : null;
+      if (chapterNum !== uvCurrentChapterNum) {
+        uvCurrentChapterNum = chapterNum;
+        if (chapterNum == null) {
+          document.getElementById('userViewTitle').textContent = '';
+        } else {
+          const bookHe = (v.book && BOOK_HE[v.book]) || v.book || '';
+          document.getElementById('userViewTitle').textContent = `${bookHe} פרק ${numToHebrew(chapterNum)}`;
+        }
       }
     }
 
@@ -1242,7 +1241,7 @@
       audio.currentTime = v.sec;
       uvCurrentIdx = idx;
       renderUvActive();
-      uvUpdateStickyChapter(v.sec);
+      uvUpdateStickyChapter(idx);
       if (opts.pause === false && wasPlaying) audio.play();
     }
 
@@ -1321,7 +1320,7 @@
         uvCurrentIdx = idx;
         renderUvActive();
       }
-      uvUpdateStickyChapter(t);
+      uvUpdateStickyChapter(idx);
     }
 
     document.getElementById('srtPlayer').addEventListener('timeupdate', updateUserViewPlayback);
