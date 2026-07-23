@@ -836,14 +836,8 @@
       if (!isNaN(saved) && saved > 0) {
         audio.addEventListener('loadedmetadata', () => { audio.currentTime = saved; }, { once: true });
       }
-      let lastSaved = 0;
-      audio.addEventListener('timeupdate', () => {
-        const t = audio.currentTime;
-        if (Math.abs(t - lastSaved) >= 2) {
-          localStorage.setItem(key, String(t));
-          lastSaved = t;
-        }
-      });
+      // בלי כתיבה תכופה ב-timeupdate: כתיבה סינכרונית ל-localStorage כל 2 שניות תוך כדי ניגון
+      // אושרה כחוסמת seek gestures ב-iOS (Safari/Chrome-iOS) - נשמר רק באירועים בדידים.
       audio.addEventListener('pause', () => localStorage.setItem(key, String(audio.currentTime)));
       window.addEventListener('beforeunload', () => localStorage.setItem(key, String(audio.currentTime)));
     }
