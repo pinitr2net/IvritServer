@@ -576,6 +576,10 @@
     // מצב אבחון: משבית לגמרי את סנכרון הפסוקים (timeupdate/שחזור מיקום) ומשאיר רק את נגן ה-audio הגולמי,
     // כדי לבודד אם בעיית seek/סנכרון היא בנגן עצמו או בקוד הסנכרון שלנו. אין השפעה כשהפרמטר לא קיים.
     const rawAudioMode = new URLSearchParams(location.search).get('rawaudio') === '1';
+    // נקבע ל-true ע"י bootstrapFromLecture בנתיב production הרגיל (/lecture/:slug) בלבד -
+    // נמצא שהדגשת verse-card/parallel-seg (כולל scrollIntoView) שרצה תמיד ברקע, גם עם
+    // .card מוסתר, חוסמת seek באייפון בפועל. false כברירת מחדל כדי לא לפגוע בדף ה-transcribe הרגיל.
+    let suppressCardHighlighting = false;
     applyMeterVisibility();
     updateCacheButtons();
 
@@ -802,6 +806,7 @@
         lastData.title = data.title || '';
         document.getElementById('userViewTitle').textContent = sequenceMode ? '' : lastData.title;
         srtSegments = parseSrt(data.srt);
+        suppressCardHighlighting = !isDebug;
         setupAudioPlayer(data.audioUrl);
         if (!rawAudioMode) setupLecturePositionPersistence(slug);
         renderParallelVerses({ verses: data.verses, complete: data.complete, topics: data.topics });
@@ -1056,7 +1061,7 @@
       }
       document.getElementById('stickyPlayer').style.display = 'block';
       document.body.style.paddingTop = '60px';
-      if (rawAudioMode) return;
+      if (rawAudioMode || suppressCardHighlighting) return;
       audio.ontimeupdate = () => {
         const t = audio.currentTime;
         const verseCards = [...document.querySelectorAll('.verse-card[data-start]')];
@@ -1664,7 +1669,7 @@
         });
       });
 
-      if (!rawAudioMode) {
+      if (!rawAudioMode && !suppressCardHighlighting) {
         document.getElementById('srtPlayer').addEventListener('timeupdate', function () {
           const t = this.currentTime;
           container.querySelectorAll('.parallel-seg[data-start]').forEach(div => {
