@@ -67,3 +67,7 @@ ffmpeg -y -i input.mp3 -codec:a libmp3lame -b:a 128k -abr 0 output.mp3
 - שינוי ב-`index.js` **דורש** restart ל-node (`taskkill` + `node index.js` מחדש) — הקוד נטען פעם אחת בהפעלה.
 - שינוי ב-`public/index.html` **לא** דורש restart — מוגש כקובץ סטטי, נקרא מהדיסק מחדש בכל בקשה.
 - שינוי בתוכן `lectures/**` (SRT/mp3/meta.json) **לא** דורש restart — `resolveLectureFiles()` קורא מהדיסק בכל קריאה ל-`/lecture/:slug/data.json`.
+
+## דיפלוי לפרודקשן (Railway)
+
+הפרודקשן (`https://ivritserver-production.up.railway.app`) עולה אוטומטית מ-`git push` ל-`main` ב-GitHub, אבל זה **לא מיידי** — לוקח כמה דקות לבנייה+דיפלוי מחדש (במיוחד עם קובצי mp3 גדולים). אחרי push של שיעור חדש, `curl` על `/lectures/list` בפרודקשן עשוי עדיין להראות את הרשימה הישנה לכמה דקות אחרי שה-push כבר הצליח ו-localhost כבר מציג את השינוי. אין CLI של Railway מותקן מקומית לבדיקת סטטוס הדיפלוי — הדרך היחידה לוודא הוא לבדוק שוב מול ה-URL של הפרודקשן (בפולינג, לא בהנחה שנכשל).
