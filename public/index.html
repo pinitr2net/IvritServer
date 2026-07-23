@@ -576,6 +576,10 @@
     // מצב אבחון: משבית לגמרי את סנכרון הפסוקים (timeupdate/שחזור מיקום) ומשאיר רק את נגן ה-audio הגולמי,
     // כדי לבודד אם בעיית seek/סנכרון היא בנגן עצמו או בקוד הסנכרון שלנו. אין השפעה כשהפרמטר לא קיים.
     const rawAudioMode = new URLSearchParams(location.search).get('rawaudio') === '1';
+    // מצב אבחון: משבית את שלוש לולאות ה-requestAnimationFrame הרציפות של תצוגת המשתמש
+    // (uvScrollRaf/uvMeterRaf/uvPauseWatchRaf, שרצות ב-60fps כל עוד התצוגה פעילה) כדי לבדוק
+    // אם העומס שלהן על ה-thread הראשי חוסם seek gestures ב-iOS. אין השפעה כשהפרמטר לא קיים.
+    const noRafLoops = new URLSearchParams(location.search).get('noraf') === '1';
     applyMeterVisibility();
     updateCacheButtons();
 
@@ -1084,9 +1088,11 @@
       if (userViewActive) {
         renderUserView();
         updateUserViewPlayback();
-        if (showMeter) startUvMeterLoop();
-        startUvPauseWatchLoop();
-        startUvScrollLoop();
+        if (!noRafLoops) {
+          if (showMeter) startUvMeterLoop();
+          startUvPauseWatchLoop();
+          startUvScrollLoop();
+        }
       } else {
         stopUvMeterLoop();
         stopUvPauseWatchLoop();
