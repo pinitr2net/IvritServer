@@ -573,6 +573,9 @@
     const sequenceMode = new URLSearchParams(location.search).get('rezef') === '1';
     if (sequenceMode) document.getElementById('userView').classList.add('uv-sequence-mode');
     const isDebugRoute = location.pathname.includes('/lecture/debug/');
+    // מצב אבחון: משבית לגמרי את סנכרון הפסוקים (timeupdate/שחזור מיקום) ומשאיר רק את נגן ה-audio הגולמי,
+    // כדי לבודד אם בעיית seek/סנכרון היא בנגן עצמו או בקוד הסנכרון שלנו. אין השפעה כשהפרמטר לא קיים.
+    const rawAudioMode = new URLSearchParams(location.search).get('rawaudio') === '1';
     applyMeterVisibility();
     updateCacheButtons();
 
@@ -800,12 +803,14 @@
         document.getElementById('userViewTitle').textContent = sequenceMode ? '' : lastData.title;
         srtSegments = parseSrt(data.srt);
         setupAudioPlayer(data.audioUrl);
-        setupLecturePositionPersistence(slug);
+        if (!rawAudioMode) setupLecturePositionPersistence(slug);
         renderParallelVerses({ verses: data.verses, complete: data.complete, topics: data.topics });
         document.getElementById('lectureLoader').style.display = 'none';
-        toggleUserView();
-        if (!isDebug) {
-          document.getElementById('viewToggleFab').style.display = 'none';
+        if (!rawAudioMode) {
+          toggleUserView();
+          if (!isDebug) {
+            document.getElementById('viewToggleFab').style.display = 'none';
+          }
         }
       } catch (e) {
         document.getElementById('lectureLoader').style.display = 'none';
