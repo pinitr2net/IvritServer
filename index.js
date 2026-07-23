@@ -5,12 +5,31 @@ const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
 const { sefariaGet, getVerse } = require('./sefaria');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+
+function getCommitInfo() {
+  if (process.env.RAILWAY_GIT_COMMIT_SHA) {
+    return {
+      sha: process.env.RAILWAY_GIT_COMMIT_SHA.slice(0, 7),
+      message: process.env.RAILWAY_GIT_COMMIT_MESSAGE || null,
+    };
+  }
+  try {
+    return {
+      sha: execSync('git rev-parse --short HEAD', { cwd: __dirname }).toString().trim(),
+      message: execSync('git log -1 --pretty=%s', { cwd: __dirname }).toString().trim(),
+    };
+  } catch (e) {
+    return { sha: null, message: null };
+  }
+}
+const COMMIT_INFO = getCommitInfo();
 
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
@@ -372,6 +391,10 @@ ${items}
 app.get('/lecture/debug/:slug', (req, res) => {
   if (!LECTURE_SLUG_RE.test(req.params.slug)) return res.status(404).send('Not found');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/debug/commit', (req, res) => {
+  res.json(COMMIT_INFO);
 });
 
 app.get('/lecture/:slug', (req, res) => {

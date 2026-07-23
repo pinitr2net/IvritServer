@@ -276,6 +276,58 @@
       padding: 0;
     }
     #captionToggleBtn.uv-off { background: #94a3b8; }
+    #commitInfoBtn {
+      position: fixed;
+      top: 68px;
+      right: 120px;
+      z-index: 200;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: #0891b2;
+      color: #fff;
+      font-size: 1.2rem;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    #commitInfoOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 400;
+      background: rgba(0,0,0,0.4);
+      align-items: center;
+      justify-content: center;
+    }
+    #commitInfoPopup {
+      background: #fff;
+      border-radius: 10px;
+      padding: 1.25rem;
+      max-width: 90vw;
+      width: 380px;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+      direction: rtl;
+    }
+    #commitInfoPopup h3 { margin: 0 0 0.75rem; font-size: 1.05rem; color: #1e293b; }
+    #commitInfoPopup .commit-row { margin: 0.4rem 0; font-size: 0.9rem; color: #333; word-break: break-word; }
+    #commitInfoPopup .commit-row b { color: #64748b; }
+    #commitInfoPopup button {
+      margin-top: 1rem;
+      padding: 0.4rem 1rem;
+      border: none;
+      border-radius: 6px;
+      background: #64748b;
+      color: #fff;
+      cursor: pointer;
+    }
     #userViewTitle {
       flex-shrink: 0;
       height: 6.5rem;
@@ -399,6 +451,14 @@
   <div id="stickyPlayer"><audio id="srtPlayer" controls style="width:100%;"></audio></div>
   <button id="viewToggleFab" disabled onclick="toggleUserView()" title="החלף תצוגה">📖</button>
   <button id="captionToggleBtn" class="uv-off" onclick="toggleCaptions()" title="הצג כתוביות">💬</button>
+  <button id="commitInfoBtn" onclick="showCommitInfo()" title="מידע קומיט">🔖</button>
+  <div id="commitInfoOverlay" onclick="if (event.target === this) hideCommitInfo()">
+    <div id="commitInfoPopup">
+      <h3>מידע קומיט</h3>
+      <div id="commitInfoBody">טוען...</div>
+      <button onclick="hideCommitInfo()">סגור</button>
+    </div>
+  </div>
   <div class="card">
     <h1>תמלול עברית</h1>
     <input type="file" id="audioFile" accept="audio/*,video/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,.opus,.wma,.mp4,.mov,.avi,.mkv,.webm">
@@ -512,6 +572,7 @@
     let uvPauseHandledIdx = null;
     const sequenceMode = new URLSearchParams(location.search).get('rezef') === '1';
     if (sequenceMode) document.getElementById('userView').classList.add('uv-sequence-mode');
+    const isDebugRoute = location.pathname.includes('/lecture/debug/');
     applyMeterVisibility();
     updateCacheButtons();
 
@@ -1013,6 +1074,7 @@
       fab.textContent = userViewActive ? '🛠️' : '📖';
       fab.title = userViewActive ? 'חזרה לתצוגת ניפוי' : 'תצוגת משתמש';
       document.getElementById('captionToggleBtn').style.display = userViewActive ? 'none' : 'flex';
+      if (isDebugRoute) document.getElementById('commitInfoBtn').style.display = userViewActive ? 'flex' : 'none';
       if (userViewActive) {
         renderUserView();
         updateUserViewPlayback();
@@ -1032,6 +1094,25 @@
       const btn = document.getElementById('captionToggleBtn');
       btn.classList.toggle('uv-off', !captionsVisible);
       btn.title = captionsVisible ? 'הסתר כתוביות' : 'הצג כתוביות';
+    }
+
+    let commitInfoCache = null;
+    async function showCommitInfo() {
+      document.getElementById('commitInfoOverlay').style.display = 'flex';
+      if (!commitInfoCache) {
+        try {
+          commitInfoCache = await (await fetch('/debug/commit')).json();
+        } catch (e) {
+          commitInfoCache = { sha: null, message: null };
+        }
+      }
+      const { sha, message } = commitInfoCache;
+      document.getElementById('commitInfoBody').innerHTML = `
+        <div class="commit-row"><b>קומיט:</b> ${sha ? escHtml(sha) : 'לא ידוע'}</div>
+        <div class="commit-row"><b>הודעה:</b> ${message ? escHtml(message) : 'לא ידוע'}</div>`;
+    }
+    function hideCommitInfo() {
+      document.getElementById('commitInfoOverlay').style.display = 'none';
     }
 
     function renderUserView() {
