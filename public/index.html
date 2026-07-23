@@ -543,6 +543,12 @@
   </div>
 
   <script>
+    // מצב אבחון: מבטל שימוש ב-localStorage לגמרי (זמני, לבדוק אם קריאה/כתיבה סינכרונית אליו
+    // חוסמת seek gestures ב-iOS). נחזיר את זה בהמשך - ר' feedback/project memory של השיחה.
+    if (new URLSearchParams(location.search).get('nostorage') === '1') {
+      const noopStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {}, key: () => null, length: 0 };
+      Object.defineProperty(window, 'localStorage', { value: noopStorage, writable: false, configurable: true });
+    }
     let lastData = {};
     let lastVersesData = [];
     let lastTopicsData = [];
