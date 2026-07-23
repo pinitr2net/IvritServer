@@ -359,7 +359,7 @@
       user-select: none;
     }
     #userView.uv-sequence-mode .uv-row {
-      font-size: 1.05rem;
+      font-size: 1.20rem;
       line-height: 1.5;
       padding: 0.35rem 0 0.5rem;
     }
@@ -1068,15 +1068,11 @@
       const chapIdx = idx === null ? 0 : Math.max(idx, 0);
       const v = uvVerses[chapIdx];
       const chapterNum = v && v.chapterNum != null ? v.chapterNum : null;
-      if (chapterNum !== uvCurrentChapterNum) {
-        uvCurrentChapterNum = chapterNum;
-        if (chapterNum == null) {
-          document.getElementById('userViewTitle').textContent = '';
-        } else {
-          const bookHe = (v.book && BOOK_HE[v.book]) || v.book || '';
-          document.getElementById('userViewTitle').textContent = `${bookHe} פרק ${numToHebrew(chapterNum)}`;
-        }
-      }
+      // אם אין ערך תקין (למשל chapIdx רגעית מחוץ לתחום) - לא למחוק כותרת שכבר מוצגת, רק לדלג
+      if (chapterNum == null || chapterNum === uvCurrentChapterNum) return;
+      uvCurrentChapterNum = chapterNum;
+      const bookHe = (v.book && BOOK_HE[v.book]) || v.book || '';
+      document.getElementById('userViewTitle').textContent = `${bookHe} פרק ${numToHebrew(chapterNum)}`;
     }
 
     function uvMeasureRows() {
@@ -1229,20 +1225,15 @@
       if (uvPauseWatchRaf !== null) { cancelAnimationFrame(uvPauseWatchRaf); uvPauseWatchRaf = null; }
     }
 
-    function uvSeekTo(idx, opts = {}) {
+    function uvSeekTo(idx) {
       const v = uvVerses[idx];
       if (!v) return;
       const audio = document.getElementById('srtPlayer');
-      // תמיד לעצור לפני קביעת currentTime - קביעתו בזמן ניגון פעיל לא אמינה ב-Safari/iOS
-      // (הסיבה שהניווט "התעלם" מהתזוזה והמשיך מהמקום הקודם). ממשיכים לנגן אחרי הסיק אם
-      // opts.pause===false וזה ניגן קודם, כדי לשמר את הרצף הקיים לניווט בין פסוקים.
-      const wasPlaying = !audio.paused;
       audio.pause();
       audio.currentTime = v.sec;
       uvCurrentIdx = idx;
       renderUvActive();
       uvUpdateStickyChapter(idx);
-      if (opts.pause === false && wasPlaying) audio.play();
     }
 
     document.getElementById('uvTrack').addEventListener('click', (e) => {
@@ -1255,7 +1246,7 @@
         if (audio.paused) audio.play(); else audio.pause();
         return;
       }
-      uvSeekTo(idx, { pause: false });
+      uvSeekTo(idx);
     });
 
     function uvNavigate(direction) {
@@ -1263,7 +1254,7 @@
       const targetIdx = uvCurrentIdx + direction;
       if (!uvVerses[targetIdx]) return;
       uvGestureCooldown = true;
-      uvSeekTo(targetIdx, { pause: false });
+      uvSeekTo(targetIdx);
       setTimeout(() => { uvGestureCooldown = false; }, 500);
     }
 
