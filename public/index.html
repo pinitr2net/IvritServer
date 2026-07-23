@@ -578,13 +578,6 @@
     const sequenceMode = new URLSearchParams(location.search).get('rezef') === '1';
     if (sequenceMode) document.getElementById('userView').classList.add('uv-sequence-mode');
     const isDebugRoute = location.pathname.includes('/lecture/debug/');
-    // מצב אבחון: משבית לגמרי את סנכרון הפסוקים (timeupdate/שחזור מיקום) ומשאיר רק את נגן ה-audio הגולמי,
-    // כדי לבודד אם בעיית seek/סנכרון היא בנגן עצמו או בקוד הסנכרון שלנו. אין השפעה כשהפרמטר לא קיים.
-    const rawAudioMode = new URLSearchParams(location.search).get('rawaudio') === '1';
-    // מצב אבחון: משבית את שלוש לולאות ה-requestAnimationFrame הרציפות של תצוגת המשתמש
-    // (uvScrollRaf/uvMeterRaf/uvPauseWatchRaf, שרצות ב-60fps כל עוד התצוגה פעילה) כדי לבדוק
-    // אם העומס שלהן על ה-thread הראשי חוסם seek gestures ב-iOS. אין השפעה כשהפרמטר לא קיים.
-    const noRafLoops = new URLSearchParams(location.search).get('noraf') === '1';
     applyMeterVisibility();
     updateCacheButtons();
 
@@ -812,14 +805,12 @@
         document.getElementById('userViewTitle').textContent = sequenceMode ? '' : lastData.title;
         srtSegments = parseSrt(data.srt);
         setupAudioPlayer(data.audioUrl);
-        if (!rawAudioMode) setupLecturePositionPersistence(slug);
+        setupLecturePositionPersistence(slug);
         renderParallelVerses({ verses: data.verses, complete: data.complete, topics: data.topics });
         document.getElementById('lectureLoader').style.display = 'none';
-        if (!rawAudioMode) {
-          toggleUserView();
-          if (!isDebug) {
-            document.getElementById('viewToggleFab').style.display = 'none';
-          }
+        toggleUserView();
+        if (!isDebug) {
+          document.getElementById('viewToggleFab').style.display = 'none';
         }
       } catch (e) {
         document.getElementById('lectureLoader').style.display = 'none';
@@ -1059,7 +1050,6 @@
       }
       document.getElementById('stickyPlayer').style.display = 'block';
       document.body.style.paddingTop = '60px';
-      if (rawAudioMode) return;
       audio.ontimeupdate = () => {
         const t = audio.currentTime;
         const verseCards = [...document.querySelectorAll('.verse-card[data-start]')];
@@ -1087,11 +1077,9 @@
       if (userViewActive) {
         renderUserView();
         updateUserViewPlayback();
-        if (!noRafLoops) {
-          if (showMeter) startUvMeterLoop();
-          startUvPauseWatchLoop();
-          startUvScrollLoop();
-        }
+        if (showMeter) startUvMeterLoop();
+        startUvPauseWatchLoop();
+        startUvScrollLoop();
       } else {
         stopUvMeterLoop();
         stopUvPauseWatchLoop();
@@ -1669,19 +1657,17 @@
         });
       });
 
-      if (!rawAudioMode) {
-        document.getElementById('srtPlayer').addEventListener('timeupdate', function () {
-          const t = this.currentTime;
-          container.querySelectorAll('.parallel-seg[data-start]').forEach(div => {
-            const s = parseFloat(div.dataset.start), e = parseFloat(div.dataset.end);
-            div.classList.toggle('active', t >= s && t < e);
-          });
-          container.querySelectorAll('.topic-divider[data-start]').forEach(div => {
-            const s = parseFloat(div.dataset.start), e = parseFloat(div.dataset.end);
-            div.classList.toggle('active', t >= s && t < e);
-          });
+      document.getElementById('srtPlayer').addEventListener('timeupdate', function () {
+        const t = this.currentTime;
+        container.querySelectorAll('.parallel-seg[data-start]').forEach(div => {
+          const s = parseFloat(div.dataset.start), e = parseFloat(div.dataset.end);
+          div.classList.toggle('active', t >= s && t < e);
         });
-      }
+        container.querySelectorAll('.topic-divider[data-start]').forEach(div => {
+          const s = parseFloat(div.dataset.start), e = parseFloat(div.dataset.end);
+          div.classList.toggle('active', t >= s && t < e);
+        });
+      });
 
       document.getElementById('viewToggleFab').disabled = false;
     }
