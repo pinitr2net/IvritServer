@@ -410,7 +410,8 @@ ${items}
 
 app.get('/lecture/debug/*slug', (req, res) => {
   if (!normalizeLectureSlug(req.params.slug)) return res.status(404).send('Not found');
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'), { cacheControl: false, etag: false, lastModified: false });
 });
 
 app.get('/debug/commit', (req, res) => {
@@ -506,6 +507,7 @@ app.get('/lecture/*slug', (req, res) => {
   if (!normalizeLectureSlug(req.params.slug)) return res.status(404).send('Not found');
   const html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const loaderStyle = '<style>#lectureLoader{display:flex}.card,#viewToggleFab,#userView{display:none}</style>';
+  res.set('Cache-Control', 'no-store');
   res.send(html.replace('</head>', `${loaderStyle}</head>`));
 });
 
