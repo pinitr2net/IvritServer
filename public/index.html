@@ -1388,7 +1388,7 @@
     });
 
     function updateUserViewPlayback() {
-      if (!userViewActive) return;
+      if (!userViewActive || noRafLoops) return;
       const audio = document.getElementById('srtPlayer');
       const t = audio.currentTime;
 
