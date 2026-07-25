@@ -585,6 +585,10 @@
     // (uvScrollRaf/uvMeterRaf/uvPauseWatchRaf, שרצות ב-60fps כל עוד התצוגה פעילה) כדי לבדוק
     // אם העומס שלהן על ה-thread הראשי חוסם seek gestures ב-iOS. אין השפעה כשהפרמטר לא קיים.
     const noRafLoops = new URLSearchParams(location.search).get('noraf') === '1';
+    // נקבע ל-true ע"י bootstrapFromLecture בנתיב production הרגיל (/lecture/:slug) בלבד -
+    // הדגשת verse-card/parallel-seg (כולל scrollIntoView) שרצה תמיד ברקע, גם עם .card
+    // מוסתר, אושרה כתורמת לחסימת seek באייפון. false כברירת מחדל, לא פוגע בדף ה-transcribe.
+    let suppressCardHighlighting = false;
     applyMeterVisibility();
     updateCacheButtons();
 
@@ -811,6 +815,7 @@
         lastData.title = data.title || '';
         document.getElementById('userViewTitle').textContent = sequenceMode ? '' : lastData.title;
         srtSegments = parseSrt(data.srt);
+        suppressCardHighlighting = !isDebug;
         setupAudioPlayer(data.audioUrl);
         if (!rawAudioMode) setupLecturePositionPersistence(slug);
         renderParallelVerses({ verses: data.verses, complete: data.complete, topics: data.topics });
@@ -1059,7 +1064,7 @@
       }
       document.getElementById('stickyPlayer').style.display = 'block';
       document.body.style.paddingTop = '60px';
-      if (rawAudioMode) return;
+      if (rawAudioMode || suppressCardHighlighting) return;
       audio.ontimeupdate = () => {
         const t = audio.currentTime;
         const verseCards = [...document.querySelectorAll('.verse-card[data-start]')];
@@ -1669,7 +1674,7 @@
         });
       });
 
-      if (!rawAudioMode) {
+      if (!rawAudioMode && !suppressCardHighlighting) {
         document.getElementById('srtPlayer').addEventListener('timeupdate', function () {
           const t = this.currentTime;
           container.querySelectorAll('.parallel-seg[data-start]').forEach(div => {
