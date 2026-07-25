@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\vsCodeProjects\\\\Ivrit-Server\" -Recurse -File -Name)",
+      "Bash(Select-Object -First 50)",
+      "Bash(Get-ChildItem -Path \"C:\\\\vsCodeProjects\\\\Ivrit-Server\\\\example\\\\\" -Force | Select-Object FullName)",
+      "Bash(Get-ChildItem -Path \"c:\\\\vsCodeProjects\\\\Ivrit-Server\" -Recurse -Depth 2 -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object FullName, Mode)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(Get-ChildItem -Path \"c:\\\\vsCodeProjects\\\\Ivrit-Server\" -Recurse -Depth 2)",
+      "Bash(Select-Object -Property FullName, PSIsContainer)",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(pkill -f \"node index.js\")",
+      "Bash(git commit -m ' *)",
+      "WebFetch(domain:www.sefaria.org.il)",
+      "WebFetch(domain:help.sefaria.org)",
+      "Bash(node --check index.js)",
+      "Bash(curl -s -X POST http://localhost:3000/find-verses -H \"Content-Type: application/json\" -d \"{\\\\\"text\\\\\":\\\\\"בראשית א א\\\\\",\\\\\"includeTopics\\\\\":true}\")",
+      "Bash(node -e \"const d=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\); const p=JSON.parse\\(d\\); console.log\\('has topics:', 'topics' in p, '| keys:', Object.keys\\(p\\).join\\(', '\\)\\);\")"
+    ]
+  }
+}

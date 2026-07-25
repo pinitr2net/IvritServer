@@ -1759,8 +1759,8 @@
       }
     }
 
-    const lectureDebugMatch = location.pathname.match(/^\/lecture\/debug\/([a-zA-Z0-9_-]+)\/?$/);
-    const lectureRouteMatch = location.pathname.match(/^\/lecture\/([a-zA-Z0-9_-]+)\/?$/);
+    const lectureDebugMatch = location.pathname.match(/^\/lecture\/debug\/([a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*)\/?$/);
+    const lectureRouteMatch = location.pathname.match(/^\/lecture\/([a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*)\/?$/);
     if (lectureDebugMatch) {
       bootstrapFromLecture(lectureDebugMatch[1], true);
     } else if (lectureRouteMatch) {

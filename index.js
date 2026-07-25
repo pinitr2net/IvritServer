@@ -35,7 +35,15 @@ const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
 
 const LECTURES_DIR = path.join(__dirname, 'lectures');
-const LECTURE_SLUG_RE = /^[a-zA-Z0-9_-]+$/;
+const LECTURE_SLUG_SEGMENT_RE = /^[a-zA-Z0-9_-]+$/;
+
+// slug יכול להיות שם תיקייה שטוח ("Job1") או נתיב מקונן ("929/Job1") - הראוט משתמש
+// ב-wildcard (*slug) כדי לאפשר "/" בתוך ה-slug, ולכן req.params.slug מגיע כמערך מקטעים.
+function normalizeLectureSlug(slugParam) {
+  const parts = Array.isArray(slugParam) ? slugParam : [slugParam];
+  if (!parts.length || !parts.every(p => LECTURE_SLUG_SEGMENT_RE.test(p))) return null;
+  return parts.join('/');
+}
 const AUDIO_EXTS = ['.mp3', '.m4a', '.wav', '.aac', '.ogg', '.flac', '.opus', '.wma', '.mp4', '.mov', '.avi', '.mkv', '.webm'];
 const AUDIO_MIME_TYPES = {
   '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.aac': 'audio/aac',
@@ -76,15 +84,17 @@ function hebrewToNum(str) {
 function resolveLectureFiles(slug) {
   const dir = path.join(LECTURES_DIR, slug);
   if (!fs.existsSync(dir)) return null;
+  // שם הקבצים תמיד לפי המקטע האחרון של ה-slug (שם התיקייה עצמה), לא כל הנתיב המקונן
+  const filePrefix = slug.split('/').pop();
   const files = fs.readdirSync(dir);
   const has = name => files.includes(name);
   const pick = candidates => candidates.find(has);
 
-  const captionsFile = pick([`${slug}.corrected.srt`, `${slug}.srt`, `${slug}.verses.srt`]);
-  const refsFile = has(`${slug}.refs.srt`) ? `${slug}.refs.srt` : null;
-  const chaptersFile = has(`${slug}.chapters.srt`) ? `${slug}.chapters.srt` : null;
-  const metaFile = has(`${slug}.meta.json`) ? `${slug}.meta.json` : null;
-  const audioFile = files.find(f => f.startsWith(`${slug}.`) && AUDIO_EXTS.includes(path.extname(f).toLowerCase()));
+  const captionsFile = pick([`${filePrefix}.corrected.srt`, `${filePrefix}.srt`, `${filePrefix}.verses.srt`]);
+  const refsFile = has(`${filePrefix}.refs.srt`) ? `${filePrefix}.refs.srt` : null;
+  const chaptersFile = has(`${filePrefix}.chapters.srt`) ? `${filePrefix}.chapters.srt` : null;
+  const metaFile = has(`${filePrefix}.meta.json`) ? `${filePrefix}.meta.json` : null;
+  const audioFile = files.find(f => f.startsWith(`${filePrefix}.`) && AUDIO_EXTS.includes(path.extname(f).toLowerCase()));
 
   if (!captionsFile || !refsFile || !metaFile || !audioFile) return null;
 
@@ -351,11 +361,21 @@ app.post('/claude', express.json(), async (req, res) => {
   }
 });
 
+// אוסף רקורסיבית את כל נתיבי התיקיות מתחת ל-LECTURES_DIR (כולל קבוצות מקוננות כמו "929/Job1"),
+// כדי שתיקיית שיעור לא חייבת לשבת ישירות תחת lectures/ - resolveLectureFiles מסנן מה שלא שיעור תקין
+function collectLectureSlugs(dir, prefix = '') {
+  const slugs = [];
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!e.isDirectory() || !LECTURE_SLUG_SEGMENT_RE.test(e.name)) continue;
+    const slug = prefix ? `${prefix}/${e.name}` : e.name;
+    slugs.push(slug);
+    slugs.push(...collectLectureSlugs(path.join(dir, e.name), slug));
+  }
+  return slugs;
+}
+
 app.get('/lectures/list', (req, res) => {
-  const entries = fs.readdirSync(LECTURES_DIR, { withFileTypes: true })
-    .filter(e => e.isDirectory() && LECTURE_SLUG_RE.test(e.name))
-    .map(e => e.name)
-    .sort();
+  const entries = collectLectureSlugs(LECTURES_DIR).sort();
 
   const lectures = entries
     .map(slug => ({ slug, lecture: resolveLectureFiles(slug) }))
@@ -388,8 +408,8 @@ ${items}
 </html>`);
 });
 
-app.get('/lecture/debug/:slug', (req, res) => {
-  if (!LECTURE_SLUG_RE.test(req.params.slug)) return res.status(404).send('Not found');
+app.get('/lecture/debug/*slug', (req, res) => {
+  if (!normalizeLectureSlug(req.params.slug)) return res.status(404).send('Not found');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
@@ -397,16 +417,11 @@ app.get('/debug/commit', (req, res) => {
   res.json(COMMIT_INFO);
 });
 
-app.get('/lecture/:slug', (req, res) => {
-  if (!LECTURE_SLUG_RE.test(req.params.slug)) return res.status(404).send('Not found');
-  const html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
-  const loaderStyle = '<style>#lectureLoader{display:flex}.card,#viewToggleFab,#userView{display:none}</style>';
-  res.send(html.replace('</head>', `${loaderStyle}</head>`));
-});
-
-app.get('/lecture/:slug/audio', (req, res) => {
-  const { slug } = req.params;
-  if (!LECTURE_SLUG_RE.test(slug)) return res.status(404).json({ error: 'Not found' });
+// /audio ו-/data.json חייבים להיות רשומים לפני הראוט הכללי /lecture/*slug למטה,
+// אחרת ה-wildcard שלו "בולע" גם את הסיומות האלה ומחזיר HTML במקום.
+app.get('/lecture/*slug/audio', (req, res) => {
+  const slug = normalizeLectureSlug(req.params.slug);
+  if (!slug) return res.status(404).json({ error: 'Not found' });
   const lecture = resolveLectureFiles(slug);
   if (!lecture) return res.status(404).json({ error: 'Lecture not found' });
 
@@ -442,9 +457,9 @@ app.get('/lecture/:slug/audio', (req, res) => {
   fs.createReadStream(lecture.audioPath, { start, end }).pipe(res);
 });
 
-app.get('/lecture/:slug/data.json', async (req, res) => {
-  const { slug } = req.params;
-  if (!LECTURE_SLUG_RE.test(slug)) return res.status(404).json({ error: 'Not found' });
+app.get('/lecture/*slug/data.json', async (req, res) => {
+  const slug = normalizeLectureSlug(req.params.slug);
+  if (!slug) return res.status(404).json({ error: 'Not found' });
   const lecture = resolveLectureFiles(slug);
   if (!lecture) return res.status(404).json({ error: 'Lecture not found' });
 
@@ -484,6 +499,14 @@ app.get('/lecture/:slug/data.json', async (req, res) => {
     console.error('lecture data error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ראוט כללי - חייב לבוא אחרי /audio ו-/data.json (ראה הערה למעלה)
+app.get('/lecture/*slug', (req, res) => {
+  if (!normalizeLectureSlug(req.params.slug)) return res.status(404).send('Not found');
+  const html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+  const loaderStyle = '<style>#lectureLoader{display:flex}.card,#viewToggleFab,#userView{display:none}</style>';
+  res.send(html.replace('</head>', `${loaderStyle}</head>`));
 });
 
 app.listen(PORT, () => {
