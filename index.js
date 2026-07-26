@@ -443,10 +443,15 @@ app.get('/lecture/*slug/audio', (req, res) => {
   const match = /^bytes=(\d*)-(\d*)$/.exec(range);
   if (!match) return res.status(416).set('Content-Range', `bytes */${fileSize}`).end();
   const start = match[1] ? parseInt(match[1], 10) : 0;
-  const end = match[2] ? parseInt(match[2], 10) : fileSize - 1;
+  let end = match[2] ? parseInt(match[2], 10) : fileSize - 1;
   if (start >= fileSize || end >= fileSize || start > end) {
     return res.status(416).set('Content-Range', `bytes */${fileSize}`).end();
   }
+  // הגבלת גודל הנתח המוגש בבקשת Range אחת - גם אם הלקוח מבקש טווח ענק (כולל "כל הקובץ"),
+  // כדי שחיבור ה-HTTP (Keep-Alive) יתפנה מהר ובקשת seek חדשה לא תיתקע מאחורי הורדה ארוכה.
+  // אושר בפועל (Safari Web Inspector, Job3): iOS מבקש לפעמים bytes=0-<סוף הקובץ> כטווח אחד.
+  const MAX_CHUNK_BYTES = 2 * 1024 * 1024;
+  if (end - start + 1 > MAX_CHUNK_BYTES) end = start + MAX_CHUNK_BYTES - 1;
 
   res.writeHead(206, {
     'Content-Range': `bytes ${start}-${end}/${fileSize}`,
