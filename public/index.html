@@ -1322,10 +1322,22 @@
       if (uvPauseWatchRaf !== null) { cancelAnimationFrame(uvPauseWatchRaf); uvPauseWatchRaf = null; }
     }
 
+    let audioEverPlayed = false;
+    document.getElementById('srtPlayer').addEventListener('play', () => { audioEverPlayed = true; });
+    // רשת ביטחון: אם הנגיעה הראשונה בכלל היא גרירת פס ההתקדמות המקורי (לא לחיצה על פסוק),
+    // uvSeekTo לא נקרא כלל - מעירים את הנגן גם על כל אינטראקציה ראשונה בעמוד.
+    document.addEventListener('pointerdown', () => {
+      if (audioEverPlayed) return;
+      document.getElementById('srtPlayer').play().catch(() => {});
+    }, { once: true, capture: true });
+
     function uvSeekTo(idx) {
       const v = uvVerses[idx];
       if (!v) return;
       const audio = document.getElementById('srtPlayer');
+      // seek לפני play ראשון משאיר את ה-audio "תקוע" לצמיתות ב-iOS (seek לא עובד אפילו אחרי
+      // שמנגנים מאוחר יותר) - מעירים את הנגן פעם אחת עם play/pause מיידי לפני ה-seek הראשון.
+      if (!audioEverPlayed) audio.play().catch(() => {});
       audio.pause();
       audio.currentTime = v.sec;
       uvCurrentIdx = idx;
