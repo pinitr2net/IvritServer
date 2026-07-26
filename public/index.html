@@ -1090,7 +1090,7 @@
       document.getElementById('captionToggleBtn').style.display = userViewActive ? 'none' : 'flex';
       if (isDebugRoute) document.getElementById('commitInfoBtn').style.display = userViewActive ? 'flex' : 'none';
       if (userViewActive) {
-        renderUserView();
+        if (!noRafLoops) renderUserView();
         updateUserViewPlayback();
         if (!noRafLoops) {
           if (showMeter) startUvMeterLoop();
