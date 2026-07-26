@@ -450,9 +450,8 @@ app.get('/lecture/*slug/audio', (req, res) => {
   // הגבלת גודל הנתח המוגש בבקשת Range אחת - גם אם הלקוח מבקש טווח ענק (כולל "כל הקובץ"),
   // כדי שחיבור ה-HTTP (Keep-Alive) יתפנה מהר ובקשת seek חדשה לא תיתקע מאחורי הורדה ארוכה.
   // אושר בפועל (Safari Web Inspector, Job3): iOS מבקש לפעמים bytes=0-<סוף הקובץ> כטווח אחד.
-  // זמנית מבוטל לבדיקה חיה - לבדוק אם ההגבלה עצמה גורמת ל-iOS לא לבקש עוד נתונים ב-seek.
-  // const MAX_CHUNK_BYTES = 1 * 1024 * 1024;
-  // if (end - start + 1 > MAX_CHUNK_BYTES) end = start + MAX_CHUNK_BYTES - 1;
+  const MAX_CHUNK_BYTES = 1 * 1024 * 1024;
+  if (end - start + 1 > MAX_CHUNK_BYTES) end = start + MAX_CHUNK_BYTES - 1;
 
   res.writeHead(206, {
     'Content-Range': `bytes ${start}-${end}/${fileSize}`,
