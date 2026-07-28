@@ -65,12 +65,16 @@ function verseFromChapter(chapterData, verseNum) {
   return { heRef, verseText: chapterData.heVerses[verseNum - 1] ?? null };
 }
 
-// ביאור שטיינזלץ מאונדקס בספריא כטקסט רגיל (לא רק כ"קישור") - עם context=0 מקבלים
-// בדיוק את הפסוק המבוקש (לא פרק שלם), מתאים לשליפה על-פי דרישה של פסוק בודד
-async function getCommentary(bookEn, chapterNum, verseNum) {
-  const data = await sefariaGet(`/texts/Steinsaltz_on_${bookEn}.${chapterNum}.${verseNum}?context=0`);
+// כל פירוש (שטיינזלץ/רש"י/מלבי"ם/...) מאונדקס בספריא כטקסט רגיל (לא רק כ"קישור"),
+// בפורמט ref קבוע "{Commentator}_on_{Book}" - עם context=0 מקבלים בדיוק את הפסוק
+// המבוקש (לא פרק שלם), מתאים לשליפה על-פי דרישה של פסוק בודד
+async function getCommentary(bookEn, chapterNum, verseNum, commentatorPrefix) {
+  const data = await sefariaGet(`/texts/${commentatorPrefix}_on_${bookEn}.${chapterNum}.${verseNum}?context=0`);
   const heRef = data.heRef ?? null;
-  const text = stripHtml(typeof data.he === 'string' ? data.he : null);
+  // חלק מהפרשנים (כמו רש"י/מלבי"ם) מחזירים כמה הערות נפרדות לאותו פסוק כמערך, גם ב-context=0 -
+  // בניגוד לשטיינזלץ שמחזיר מחרוזת בודדת. מאחדים את שני המקרים לטקסט אחד.
+  const heParts = Array.isArray(data.he) ? data.he : (typeof data.he === 'string' ? [data.he] : []);
+  const text = heParts.map(stripHtml).filter(Boolean).join(' ') || null;
   return { heRef, text };
 }
 

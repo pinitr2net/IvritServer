@@ -349,6 +349,60 @@
       color: #fff;
       cursor: pointer;
     }
+    #commentaryDrawerBackdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 490;
+      background: rgba(0,0,0,0.4);
+    }
+    #commentaryDrawerBackdrop.open { display: block; }
+    #commentaryDrawer {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 500;
+      background: #fff;
+      border-radius: 16px 16px 0 0;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.3);
+      max-height: 60vh;
+      display: flex;
+      flex-direction: column;
+      transform: translateY(100%);
+      transition: transform 0.3s ease;
+      direction: rtl;
+      padding: 0.75rem 1.25rem 1.25rem;
+      box-sizing: border-box;
+    }
+    #commentaryDrawer.open { transform: translateY(0); }
+    #commentaryDrawerHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    #commentaryDrawerTabs { display: flex; gap: 0.5rem; }
+    .commentary-tab {
+      padding: 0.35rem 0.9rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .commentary-tab.active { background: #1e293b; color: #fff; border-color: #1e293b; }
+    #commentaryDrawerClose {
+      border: none;
+      background: none;
+      font-size: 1.1rem;
+      color: #64748b;
+      cursor: pointer;
+      padding: 0.25rem 0.5rem;
+    }
+    #commentaryDrawerRef { flex-shrink: 0; font-weight: 600; color: #64748b; margin: 0.6rem 0 0.4rem; font-size: 0.95rem; }
+    #commentaryDrawerBody { overflow-y: auto; font-size: 1.05rem; line-height: 1.6; color: #1e293b; }
     #userViewTitle {
       flex-shrink: 0;
       height: 6.5rem;
@@ -490,6 +544,19 @@
       <div id="commitInfoBody">טוען...</div>
       <button onclick="hideCommitInfo()">סגור</button>
     </div>
+  </div>
+  <div id="commentaryDrawerBackdrop" onclick="hideCommentaryDrawer()"></div>
+  <div id="commentaryDrawer">
+    <div id="commentaryDrawerHeader">
+      <div id="commentaryDrawerTabs">
+        <button class="commentary-tab" data-commentator="steinsaltz">שטיינזלץ</button>
+        <button class="commentary-tab" data-commentator="rashi">רש"י</button>
+        <button class="commentary-tab" data-commentator="malbim">מלבי"ם</button>
+      </div>
+      <button id="commentaryDrawerClose" onclick="hideCommentaryDrawer()" aria-label="סגור">✕</button>
+    </div>
+    <div id="commentaryDrawerRef"></div>
+    <div id="commentaryDrawerBody"></div>
   </div>
   <div class="card">
     <h1>תמלול עברית</h1>
@@ -1435,17 +1502,76 @@
       uvUpdateStickyChapter(idx);
     }
 
+    // מטמון בקליינט - למנוע יותר מבקשה אחת לאותו פירוש+פסוק
+    const commentaryCache = new Map();
+    let commentaryDrawerVerse = null;
+    let commentaryDrawerCommentator = 'steinsaltz';
+
+    function commentaryCacheKey(v, commentator) {
+      return `${v.book}|${v.chapterNum}|${v.verseNum}|${commentator}`;
+    }
+
+    async function fetchCommentary(v, commentator) {
+      const key = commentaryCacheKey(v, commentator);
+      if (commentaryCache.has(key)) return commentaryCache.get(key);
+      let result;
+      try {
+        const res = await fetch(`/sefaria/commentary?book=${encodeURIComponent(v.book)}&chapter=${v.chapterNum}&verse=${v.verseNum}&commentator=${commentator}`);
+        result = res.ok ? await res.json() : { error: true };
+      } catch (e) {
+        result = { error: true };
+      }
+      commentaryCache.set(key, result);
+      return result;
+    }
+
+    async function renderCommentaryDrawer() {
+      const v = commentaryDrawerVerse;
+      if (!v) return;
+      const refEl = document.getElementById('commentaryDrawerRef');
+      const bodyEl = document.getElementById('commentaryDrawerBody');
+      refEl.textContent = '';
+      bodyEl.textContent = 'טוען...';
+      const data = await fetchCommentary(v, commentaryDrawerCommentator);
+      if (v !== commentaryDrawerVerse) return; // המשתמש כבר עבר לפסוק/פירוש אחר בזמן ההמתנה לתשובה
+      if (data.error || !data.text) {
+        bodyEl.textContent = 'אין פירוש זמין לפסוק זה';
+      } else {
+        refEl.textContent = data.heRef || '';
+        bodyEl.textContent = data.text;
+      }
+    }
+
+    function showCommentaryDrawer(v) {
+      commentaryDrawerVerse = v;
+      commentaryDrawerCommentator = 'steinsaltz';
+      document.querySelectorAll('.commentary-tab').forEach(el => el.classList.toggle('active', el.dataset.commentator === commentaryDrawerCommentator));
+      document.getElementById('commentaryDrawer').classList.add('open');
+      document.getElementById('commentaryDrawerBackdrop').classList.add('open');
+      renderCommentaryDrawer();
+    }
+
+    function hideCommentaryDrawer() {
+      document.getElementById('commentaryDrawer').classList.remove('open');
+      document.getElementById('commentaryDrawerBackdrop').classList.remove('open');
+      commentaryDrawerVerse = null;
+    }
+
+    document.querySelectorAll('.commentary-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        if (tab.dataset.commentator === commentaryDrawerCommentator) return;
+        commentaryDrawerCommentator = tab.dataset.commentator;
+        document.querySelectorAll('.commentary-tab').forEach(el => el.classList.toggle('active', el === tab));
+        renderCommentaryDrawer();
+      });
+    });
+
     document.getElementById('uvTrack').addEventListener('click', (e) => {
       const commentaryBtn = e.target.closest('.uv-commentary-btn');
       if (commentaryBtn) {
         const idx = parseInt(commentaryBtn.dataset.idx, 10);
         const v = uvVerses[idx];
-        if (v) {
-          fetch(`/sefaria/commentary?book=${encodeURIComponent(v.book)}&chapter=${v.chapterNum}&verse=${v.verseNum}`)
-            .then(r => r.json())
-            .then(data => console.log('פירוש שטיינזלץ:', data))
-            .catch(err => console.error('commentary fetch failed', err));
-        }
+        if (v) showCommentaryDrawer(v);
         return;
       }
       const row = e.target.closest('.uv-row');

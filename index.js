@@ -49,6 +49,12 @@ const TANACH_BOOKS = ['Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy'
   'Nahum', 'Habakkuk', 'Zephaniah', 'Haggai', 'Zechariah', 'Malachi', 'Psalms', 'Proverbs', 'Job', 'Song of Songs', 'Ruth',
   'Lamentations', 'Ecclesiastes', 'Esther', 'Daniel', 'Ezra', 'Nehemiah', 'I Chronicles', 'II Chronicles'];
 
+const COMMENTATORS = {
+  steinsaltz: 'Steinsaltz',
+  rashi: 'Rashi',
+  malbim: 'Malbim',
+};
+
 const AUDIO_EXTS = ['.mp3', '.m4a', '.wav', '.aac', '.ogg', '.flac', '.opus', '.wma', '.mp4', '.mov', '.avi', '.mkv', '.webm'];
 const AUDIO_MIME_TYPES = {
   '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.aac': 'audio/aac',
@@ -541,15 +547,17 @@ app.get('/sefaria/commentary', async (req, res) => {
   const book = req.query.book;
   const chapter = Number(req.query.chapter);
   const verse = Number(req.query.verse);
-  if (!TANACH_BOOKS.includes(book) || !Number.isInteger(chapter) || chapter < 1 || !Number.isInteger(verse) || verse < 1) {
+  const commentatorKey = req.query.commentator || 'steinsaltz';
+  const commentatorPrefix = COMMENTATORS[commentatorKey];
+  if (!TANACH_BOOKS.includes(book) || !Number.isInteger(chapter) || chapter < 1 || !Number.isInteger(verse) || verse < 1 || !commentatorPrefix) {
     return res.status(400).json({ error: 'קלט לא תקין' });
   }
   try {
-    const commentary = await getCommentary(book, chapter, verse);
+    const commentary = await getCommentary(book, chapter, verse, commentatorPrefix);
     if (!commentary.text) return res.status(404).json({ error: 'לא נמצא פירוש' });
     res.json(commentary);
   } catch (e) {
-    console.warn('Sefaria commentary lookup failed:', book, chapter, verse, e.message);
+    console.warn('Sefaria commentary lookup failed:', book, chapter, verse, commentatorKey, e.message);
     res.status(404).json({ error: 'לא נמצא פירוש' });
   }
 });
