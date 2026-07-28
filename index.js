@@ -467,6 +467,40 @@ app.get('/lecture/*slug/audio', (req, res) => {
   stream.pipe(res);
 });
 
+async function buildLectureVerseData(lecture) {
+  const refsSrt = fs.readFileSync(lecture.refsPath, 'utf8');
+  const refBlocks = parseSrt(refsSrt);
+
+  const detectedVerses = await Promise.all(refBlocks.map(async block => {
+    const [chapterHeb, verseHeb] = block.text.split(',').map(s => s.trim());
+    const chapterNum = hebrewToNum(chapterHeb);
+    const verseNum = hebrewToNum(verseHeb);
+    const startTime = block.startTime.split(',')[0];
+    let verse = `${lecture.book} ${numToHebrew(chapterNum)}:${numToHebrew(verseNum)}`;
+    let verseText = null;
+    try {
+      const sefaria = await getVerse(lecture.book, chapterNum, verseNum);
+      if (sefaria.heRef) verse = sefaria.heRef;
+      verseText = sefaria.verseText;
+    } catch (e) {
+      console.warn('Sefaria lookup failed:', lecture.book, chapterNum, verseNum, e.message);
+    }
+    return { book: lecture.book, chapterNum, verseNum, verse, verseText, startTime };
+  }));
+
+  const { verses, complete } = detectGaps(detectedVerses);
+
+  let topics;
+  if (lecture.chaptersPath) {
+    const chaptersSrt = fs.readFileSync(lecture.chaptersPath, 'utf8');
+    topics = parseSrt(chaptersSrt).map(b => ({ title: b.text, startTime: b.startTime.split(',')[0] }));
+  }
+
+  const srt = fs.readFileSync(lecture.captionsPath, 'utf8');
+
+  return { srt, verses, complete, ...(topics !== undefined && { topics }) };
+}
+
 app.get('/lecture/*slug/data.json', async (req, res) => {
   const slug = normalizeLectureSlug(req.params.slug);
   if (!slug) return res.status(404).json({ error: 'Not found' });
@@ -474,37 +508,8 @@ app.get('/lecture/*slug/data.json', async (req, res) => {
   if (!lecture) return res.status(404).json({ error: 'Lecture not found' });
 
   try {
-    const refsSrt = fs.readFileSync(lecture.refsPath, 'utf8');
-    const refBlocks = parseSrt(refsSrt);
-
-    const detectedVerses = await Promise.all(refBlocks.map(async block => {
-      const [chapterHeb, verseHeb] = block.text.split(',').map(s => s.trim());
-      const chapterNum = hebrewToNum(chapterHeb);
-      const verseNum = hebrewToNum(verseHeb);
-      const startTime = block.startTime.split(',')[0];
-      let verse = `${lecture.book} ${numToHebrew(chapterNum)}:${numToHebrew(verseNum)}`;
-      let verseText = null;
-      try {
-        const sefaria = await getVerse(lecture.book, chapterNum, verseNum);
-        if (sefaria.heRef) verse = sefaria.heRef;
-        verseText = sefaria.verseText;
-      } catch (e) {
-        console.warn('Sefaria lookup failed:', lecture.book, chapterNum, verseNum, e.message);
-      }
-      return { book: lecture.book, chapterNum, verseNum, verse, verseText, startTime };
-    }));
-
-    const { verses, complete } = detectGaps(detectedVerses);
-
-    let topics;
-    if (lecture.chaptersPath) {
-      const chaptersSrt = fs.readFileSync(lecture.chaptersPath, 'utf8');
-      topics = parseSrt(chaptersSrt).map(b => ({ title: b.text, startTime: b.startTime.split(',')[0] }));
-    }
-
-    const srt = fs.readFileSync(lecture.captionsPath, 'utf8');
-
-    res.json({ book: lecture.book, title: lecture.title, audioUrl: `/lecture/${slug}/audio`, srt, verses, complete, ...(topics !== undefined && { topics }) });
+    const payload = await buildLectureVerseData(lecture);
+    res.json({ book: lecture.book, title: lecture.title, audioUrl: `/lecture/${slug}/audio`, ...payload });
   } catch (err) {
     console.error('lecture data error:', err.message);
     res.status(500).json({ error: err.message });
@@ -512,8 +517,29 @@ app.get('/lecture/*slug/data.json', async (req, res) => {
 });
 
 // ראוט כללי - חייב לבוא אחרי /audio ו-/data.json (ראה הערה למעלה)
-app.get('/lecture/*slug', (req, res) => {
-  if (!normalizeLectureSlug(req.params.slug)) return res.status(404).send('Not found');
+app.get('/lecture/*slug', async (req, res) => {
+  const slug = normalizeLectureSlug(req.params.slug);
+  if (!slug) return res.status(404).send('Not found');
+
+  if (req.query.static === '1') {
+    const lecture = resolveLectureFiles(slug);
+    if (!lecture) return res.status(404).send('Lecture not found');
+
+    try {
+      const payload = await buildLectureVerseData(lecture);
+      const contentType = AUDIO_MIME_TYPES[path.extname(lecture.audioPath).toLowerCase()] || 'application/octet-stream';
+      const audioDataUri = `data:${contentType};base64,${fs.readFileSync(lecture.audioPath).toString('base64')}`;
+      const data = { book: lecture.book, title: lecture.title, audioUrl: audioDataUri, ...payload };
+      const html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+      const inject = `<script>window.__STATIC_LECTURE__=${JSON.stringify(data).replace(/</g, '\\u003c')};</script>`;
+      res.set('Cache-Control', 'no-store');
+      return res.send(html.replace('</head>', `${inject}</head>`));
+    } catch (err) {
+      console.error('static lecture export error:', err.message);
+      return res.status(500).send('Error building static lecture');
+    }
+  }
+
   const html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const loaderStyle = '<style>#lectureLoader{display:flex}.card,#viewToggleFab,#userView{display:none}</style>';
   res.set('Cache-Control', 'no-store');
