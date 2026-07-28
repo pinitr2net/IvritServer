@@ -396,6 +396,8 @@
     }
     .uv-row.uv-active:hover { opacity: 1; }
     .uv-row.uv-hidden-hist { opacity: 0; pointer-events: none; }
+    .uv-commentary-btn { display: none; }
+    .uv-row.uv-active .uv-commentary-btn { display: inline-block; }
     .uv-num-badge {
       flex: 0 0 var(--uv-num-col);
       height: calc(1.3rem * 1.7);
@@ -871,23 +873,29 @@
     }
 
     function bootstrapFromStaticLecture(data) {
-      try {
-        clearDisplayedContent();
-        lastData.srt = data.srt;
-        lastData.title = data.title || '';
-        document.getElementById('userViewTitle').textContent = sequenceMode ? '' : lastData.title;
-        srtSegments = parseSrt(data.srt);
-        suppressCardHighlighting = true;
-        setupAudioPlayer(data.audioUrl);
-        renderParallelVerses({ verses: data.verses, complete: data.complete, topics: data.topics });
-        document.getElementById('lectureLoader').style.display = 'none';
-        toggleUserView();
-        document.getElementById('viewToggleFab').style.display = 'none';
-      } catch (e) {
-        document.getElementById('lectureLoader').style.display = 'none';
-        document.querySelector('.card').style.display = '';
-        document.getElementById('status').textContent = 'שגיאה: ' + e.message;
-      }
+      // בניגוד ל-bootstrapFromLecture (שיש בו await fetch שנותן לדפדפן "לנשום" לפני
+      // חישובי המיקום של הקרוסלה), הזרימה הסטטית רצה מיידית וסינכרונית - ב-webview
+      // מוגבל כמו תצוגה מקדימה של קובץ בוואטסאפ זה קרה לפני שה-layout התייצב וגרם
+      // לשורות להיחשב מחוץ למסך. שני requestAnimationFrame נותנים לו לפחות ציור אחד.
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        try {
+          clearDisplayedContent();
+          lastData.srt = data.srt;
+          lastData.title = data.title || '';
+          document.getElementById('userViewTitle').textContent = sequenceMode ? '' : lastData.title;
+          srtSegments = parseSrt(data.srt);
+          suppressCardHighlighting = true;
+          setupAudioPlayer(data.audioUrl);
+          renderParallelVerses({ verses: data.verses, complete: data.complete, topics: data.topics });
+          document.getElementById('lectureLoader').style.display = 'none';
+          toggleUserView();
+          document.getElementById('viewToggleFab').style.display = 'none';
+        } catch (e) {
+          document.getElementById('lectureLoader').style.display = 'none';
+          document.querySelector('.card').style.display = '';
+          document.getElementById('status').textContent = 'שגיאה: ' + e.message;
+        }
+      }));
     }
 
     function setupLecturePositionPersistence(slug) {
@@ -1228,6 +1236,7 @@
             <span class="uv-verse-num">${v.verseNum != null ? numToHebrew(v.verseNum) : ''}</span>
           </span>
           <span class="uv-row-text">${escHtml(v.text)}</span>
+          ${!linkerMode ? `<button class="uv-commentary-btn" type="button" data-idx="${i}">פירוש</button>` : ''}
           <span class="uv-row-spacer" aria-hidden="true"></span>
           <div class="uv-meter"><div class="uv-meter-fill"></div></div>
         </${rowTag}>`).join('');
@@ -1427,6 +1436,18 @@
     }
 
     document.getElementById('uvTrack').addEventListener('click', (e) => {
+      const commentaryBtn = e.target.closest('.uv-commentary-btn');
+      if (commentaryBtn) {
+        const idx = parseInt(commentaryBtn.dataset.idx, 10);
+        const v = uvVerses[idx];
+        if (v) {
+          fetch(`/sefaria/commentary?book=${encodeURIComponent(v.book)}&chapter=${v.chapterNum}&verse=${v.verseNum}`)
+            .then(r => r.json())
+            .then(data => console.log('פירוש שטיינזלץ:', data))
+            .catch(err => console.error('commentary fetch failed', err));
+        }
+        return;
+      }
       const row = e.target.closest('.uv-row');
       if (!row) return;
       if (linkerMode) return; // הפסוק הוא לינק אמיתי לספריא - נותנים לניווט הדפדפן הרגיל לקרות

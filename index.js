@@ -7,7 +7,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
-const { sefariaGet, getVerse } = require('./sefaria');
+const { sefariaGet, getChapter, verseFromChapter, getCommentary } = require('./sefaria');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -44,6 +44,11 @@ function normalizeLectureSlug(slugParam) {
   if (!parts.length || !parts.every(p => LECTURE_SLUG_SEGMENT_RE.test(p))) return null;
   return parts.join('/');
 }
+const TANACH_BOOKS = ['Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy', 'Joshua', 'Judges', 'I Samuel', 'II Samuel',
+  'I Kings', 'II Kings', 'Isaiah', 'Jeremiah', 'Ezekiel', 'Hosea', 'Joel', 'Amos', 'Obadiah', 'Jonah', 'Micah',
+  'Nahum', 'Habakkuk', 'Zephaniah', 'Haggai', 'Zechariah', 'Malachi', 'Psalms', 'Proverbs', 'Job', 'Song of Songs', 'Ruth',
+  'Lamentations', 'Ecclesiastes', 'Esther', 'Daniel', 'Ezra', 'Nehemiah', 'I Chronicles', 'II Chronicles'];
+
 const AUDIO_EXTS = ['.mp3', '.m4a', '.wav', '.aac', '.ogg', '.flac', '.opus', '.wma', '.mp4', '.mov', '.avi', '.mkv', '.webm'];
 const AUDIO_MIME_TYPES = {
   '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.aac': 'audio/aac',
@@ -303,21 +308,30 @@ ${claudeInput}`,
     const parsed = JSON.parse(jsonMatch[0]);
     const segmentMap = new Map(segments.map(s => [s.num, s.startTime]));
 
-    const detectedVerses = await Promise.all((parsed.verses || []).map(async v => {
+    const chapterKey = v => `${v.book}::${v.chapterNum}`;
+    const validVerses = (parsed.verses || []).filter(v => v.book && v.chapterNum && v.verseNum);
+    const chapters = new Map();
+    await Promise.all([...new Set(validVerses.map(chapterKey))].map(async key => {
+      const [book, chapterNum] = key.split('::');
+      try {
+        chapters.set(key, await getChapter(book, Number(chapterNum)));
+      } catch (e) {
+        console.warn('Sefaria chapter lookup failed:', book, chapterNum, e.message);
+      }
+    }));
+
+    const detectedVerses = (parsed.verses || []).map(v => {
       const startRaw = v.subtitleNum ? segmentMap.get(v.subtitleNum) : undefined;
       let verse = `${v.book} ${numToHebrew(v.chapterNum)}:${numToHebrew(v.verseNum)}`;
       let verseText = null;
-      if (v.book && v.chapterNum && v.verseNum) {
-        try {
-          const sefaria = await getVerse(v.book, v.chapterNum, v.verseNum);
-          if (sefaria.heRef) verse = sefaria.heRef;
-          verseText = sefaria.verseText;
-        } catch (e) {
-          console.warn('Sefaria lookup failed:', v.book, v.chapterNum, v.verseNum, e.message);
-        }
+      const chapterData = v.book && v.chapterNum && v.verseNum ? chapters.get(chapterKey(v)) : null;
+      if (chapterData) {
+        const resolved = verseFromChapter(chapterData, v.verseNum);
+        if (resolved.heRef) verse = resolved.heRef;
+        verseText = resolved.verseText;
       }
       return { ...v, verse, verseText, startTime: startRaw ? startRaw.split(',')[0] : undefined };
-    }));
+    });
 
     const seen = new Set();
     const uniqueVerses = detectedVerses.filter(v => {
@@ -469,24 +483,31 @@ app.get('/lecture/*slug/audio', (req, res) => {
 
 async function buildLectureVerseData(lecture) {
   const refsSrt = fs.readFileSync(lecture.refsPath, 'utf8');
-  const refBlocks = parseSrt(refsSrt);
-
-  const detectedVerses = await Promise.all(refBlocks.map(async block => {
+  const refBlocks = parseSrt(refsSrt).map(block => {
     const [chapterHeb, verseHeb] = block.text.split(',').map(s => s.trim());
-    const chapterNum = hebrewToNum(chapterHeb);
-    const verseNum = hebrewToNum(verseHeb);
-    const startTime = block.startTime.split(',')[0];
+    return { chapterNum: hebrewToNum(chapterHeb), verseNum: hebrewToNum(verseHeb), startTime: block.startTime.split(',')[0] };
+  });
+
+  const chapters = new Map();
+  await Promise.all([...new Set(refBlocks.map(b => b.chapterNum))].map(async chapterNum => {
+    try {
+      chapters.set(chapterNum, await getChapter(lecture.book, chapterNum));
+    } catch (e) {
+      console.warn('Sefaria chapter lookup failed:', lecture.book, chapterNum, e.message);
+    }
+  }));
+
+  const detectedVerses = refBlocks.map(({ chapterNum, verseNum, startTime }) => {
     let verse = `${lecture.book} ${numToHebrew(chapterNum)}:${numToHebrew(verseNum)}`;
     let verseText = null;
-    try {
-      const sefaria = await getVerse(lecture.book, chapterNum, verseNum);
-      if (sefaria.heRef) verse = sefaria.heRef;
-      verseText = sefaria.verseText;
-    } catch (e) {
-      console.warn('Sefaria lookup failed:', lecture.book, chapterNum, verseNum, e.message);
+    const chapterData = chapters.get(chapterNum);
+    if (chapterData) {
+      const resolved = verseFromChapter(chapterData, verseNum);
+      if (resolved.heRef) verse = resolved.heRef;
+      verseText = resolved.verseText;
     }
     return { book: lecture.book, chapterNum, verseNum, verse, verseText, startTime };
-  }));
+  });
 
   const { verses, complete } = detectGaps(detectedVerses);
 
@@ -513,6 +534,23 @@ app.get('/lecture/*slug/data.json', async (req, res) => {
   } catch (err) {
     console.error('lecture data error:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/sefaria/commentary', async (req, res) => {
+  const book = req.query.book;
+  const chapter = Number(req.query.chapter);
+  const verse = Number(req.query.verse);
+  if (!TANACH_BOOKS.includes(book) || !Number.isInteger(chapter) || chapter < 1 || !Number.isInteger(verse) || verse < 1) {
+    return res.status(400).json({ error: 'קלט לא תקין' });
+  }
+  try {
+    const commentary = await getCommentary(book, chapter, verse);
+    if (!commentary.text) return res.status(404).json({ error: 'לא נמצא פירוש' });
+    res.json(commentary);
+  } catch (e) {
+    console.warn('Sefaria commentary lookup failed:', book, chapter, verse, e.message);
+    res.status(404).json({ error: 'לא נמצא פירוש' });
   }
 });
 
