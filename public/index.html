@@ -358,7 +358,7 @@
       background: #fff;
       border-radius: 16px 16px 0 0;
       box-shadow: 0 -4px 24px rgba(0,0,0,0.3);
-      height: 20vh;
+      height: 55vh;
       display: flex;
       flex-direction: column;
       transform: translateY(100%);
@@ -1585,6 +1585,11 @@
       }
       const current = commentaryDrawerCommentators.find(c => c.prefix === commentaryDrawerCommentator);
       btnEl.textContent = `${current ? current.label : commentaryDrawerCommentator} ▾`;
+      if (!current) {
+        // הפרשן שנבחר לא קיים לפסוק הזה (לא ברשימה שהגיעה מספריא) - לא עוברים לפרשן אחר לבד
+        bodyEl.textContent = 'אין פירוש זמין לפסוק זה מהפרשן הזה';
+        return;
+      }
       const data = commentaryCache.get(commentaryCacheKey(v, commentaryDrawerCommentator));
       if (!data) {
         bodyEl.textContent = 'טוען...';
@@ -1593,17 +1598,6 @@
       } else {
         bodyEl.textContent = data.text;
       }
-    }
-
-    // גובה המגירה נקבע לפי מיקום שורת הפסוק הפעיל בפועל - תמיד מתחתיה, אף פעם לא מכסה אותה
-    // (גם אם זה אומר גובה קטן מהרגיל, כשהפסוק ארוך ויושב נמוך במסך)
-    function positionCommentaryDrawer() {
-      const drawer = document.getElementById('commentaryDrawer');
-      const activeRow = document.querySelector('.uv-row.uv-active');
-      if (!activeRow) { drawer.style.height = `${window.innerHeight * 0.3}px`; return; }
-      const gap = 10;
-      const top = activeRow.getBoundingClientRect().bottom + gap;
-      drawer.style.height = `${Math.max(window.innerHeight - top, 60)}px`;
     }
 
     function closeCommentaryList() {
@@ -1616,22 +1610,20 @@
       document.getElementById('commentaryDrawer').classList.add('open');
       closeCommentaryList();
       renderCommentaryDrawer();
-      // דחייה לפריים הבא - לוגיקת ה-scroll loop הרציפה (startUvScrollLoop) מזיזה את הפסוק הפעיל
-      // למקומו הסופי ב-transform באותו פריים, אחרי ש-uvSeekTo כבר עדכן את uvCurrentIdx
-      requestAnimationFrame(() => positionCommentaryDrawer());
 
       const commentators = await fetchCommentatorsList(v);
       if (v !== commentaryDrawerVerse) return; // המשתמש כבר עבר לפסוק אחר בזמן ההמתנה לתשובה
       commentaryDrawerCommentators = commentators;
-      if (!commentators.some(c => c.prefix === commentaryDrawerCommentator)) {
-        // ברירת המחדל: הפרשן שנשמר מקודם אם קיים ברשימה, אחרת שטיינזלץ אם קיים, אחרת הראשון ברשימה
+      // אם כבר נבחר פרשן ספציפי (לא רק ברירת המחדל הראשונית) - לא מחליפים אותו אוטומטית
+      // כשעוברים לפסוק בלי פרשנות ממנו; מציגים "אין פירוש" ונותנים לרשימה (שמראה רק את מי שבאמת קיים כאן) להציע חלופה
+      if (commentaryDrawerCommentator === null) {
         commentaryDrawerCommentator = commentators.some(c => c.prefix === commentaryPreferredCommentator) ? commentaryPreferredCommentator
           : commentators.some(c => c.prefix === 'Steinsaltz') ? 'Steinsaltz'
           : (commentators[0] ? commentators[0].prefix : null);
       }
       renderCommentatorOptions();
       renderCommentaryDrawer();
-      if (commentaryDrawerCommentator) {
+      if (commentaryDrawerCommentator && commentators.some(c => c.prefix === commentaryDrawerCommentator)) {
         fetchCommentary(v, commentaryDrawerCommentator).then(() => {
           if (v === commentaryDrawerVerse) renderCommentaryDrawer();
         });
