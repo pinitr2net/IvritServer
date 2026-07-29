@@ -1504,6 +1504,7 @@
 
     // מטמון בקליינט - למנוע יותר מבקשה אחת לאותו פירוש+פסוק
     const commentaryCache = new Map();
+    const COMMENTATOR_KEYS = ['steinsaltz', 'rashi', 'malbim'];
     let commentaryDrawerVerse = null;
     let commentaryDrawerCommentator = 'steinsaltz';
 
@@ -1525,16 +1526,18 @@
       return result;
     }
 
-    async function renderCommentaryDrawer() {
+    // מציגה מה שכבר יש במטמון לפרשן הנבחר כרגע - לא שולפת בעצמה (השליפה מתבצעת מראש בקבוצה ב-showCommentaryDrawer)
+    function renderCommentaryDrawer() {
       const v = commentaryDrawerVerse;
       if (!v) return;
       const refEl = document.getElementById('commentaryDrawerRef');
       const bodyEl = document.getElementById('commentaryDrawerBody');
-      refEl.textContent = '';
-      bodyEl.textContent = 'טוען...';
-      const data = await fetchCommentary(v, commentaryDrawerCommentator);
-      if (v !== commentaryDrawerVerse) return; // המשתמש כבר עבר לפסוק/פירוש אחר בזמן ההמתנה לתשובה
-      if (data.error || !data.text) {
+      const data = commentaryCache.get(commentaryCacheKey(v, commentaryDrawerCommentator));
+      if (!data) {
+        refEl.textContent = '';
+        bodyEl.textContent = 'טוען...';
+      } else if (data.error || !data.text) {
+        refEl.textContent = '';
         bodyEl.textContent = 'אין פירוש זמין לפסוק זה';
       } else {
         refEl.textContent = data.heRef || '';
@@ -1549,6 +1552,12 @@
       document.getElementById('commentaryDrawer').classList.add('open');
       document.getElementById('commentaryDrawerBackdrop').classList.add('open');
       renderCommentaryDrawer();
+      // שליפת שלושת הפרשנים ביחד בלחיצה אחת - מעבר בין טאבים אחר כך הוא מיידי, מהמטמון בלבד
+      COMMENTATOR_KEYS.forEach(commentator => {
+        fetchCommentary(v, commentator).then(() => {
+          if (v === commentaryDrawerVerse && commentator === commentaryDrawerCommentator) renderCommentaryDrawer();
+        });
+      });
     }
 
     function hideCommentaryDrawer() {
