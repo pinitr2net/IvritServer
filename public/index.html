@@ -373,7 +373,7 @@
       pointer-events: none;
     }
     #commentaryDrawer.open { transform: translateY(0); pointer-events: auto; }
-    #commentaryDrawer.open.expanded { height: 100vh; border-radius: 0; }
+    #commentaryDrawer.open.expanded { height: 80vh; }
     #commentaryDrawerHandle {
       flex-shrink: 0;
       width: 40px;
@@ -1601,7 +1601,7 @@
       const refEl = document.getElementById('commentaryDrawerRef');
       const bodyEl = document.getElementById('commentaryDrawerBody');
       const btnEl = document.getElementById('commentaryDrawerCommentatorBtn');
-      // במצב מורחב (מסך מלא) מציגים את הפסוק המלא, לא תקציר
+      // במצב מורחב (80vh) מציגים את הפסוק המלא, לא תקציר
       refEl.textContent = (expanded || v.text.length <= 50) ? v.text : v.text.slice(0, 50) + '…';
       btnEl.textContent = `${commentatorLabels.get(commentaryDrawerCommentator) || commentaryDrawerCommentator} ▾`;
       const data = resolvedCommentaryChapters.get(`${v.book}|${v.chapterNum}|${commentaryDrawerCommentator}`);
@@ -1642,32 +1642,26 @@
       commentaryDrawerVerse = null;
     }
 
-    // גרירת הידית פותחת/סוגרת מצב מסך-מלא; לחיצה בלי גרירה משמעותית = toggle
+    // גרירת הידית (או הקשה בלעדיה) עוברת בין שני גבהים קבועים (40vh/80vh) - לא עוקבת
+    // אחרי מיקום האצבע באופן דינמי; המעבר עצמו מתבצע ע"י טרנזישן ה-CSS על height
     (function setupCommentaryDrawerDrag() {
       const handle = document.getElementById('commentaryDrawerHandle');
       const drawerEl = document.getElementById('commentaryDrawer');
       let startY = null;
-      let startHeight = null;
 
       handle.addEventListener('pointerdown', (e) => {
         startY = e.clientY;
-        startHeight = drawerEl.getBoundingClientRect().height;
-        drawerEl.style.transition = 'none';
         handle.setPointerCapture(e.pointerId);
       });
-      handle.addEventListener('pointermove', (e) => {
+      function endDrag(e) {
         if (startY === null) return;
         const delta = startY - e.clientY; // גרירה למעלה = חיובי
-        drawerEl.style.height = `${Math.min(window.innerHeight, Math.max(120, startHeight + delta))}px`;
-      });
-      function endDrag() {
-        if (startY === null) return;
-        const finalHeight = drawerEl.getBoundingClientRect().height;
-        const dragged = Math.abs(finalHeight - startHeight) > 5;
-        drawerEl.style.transition = '';
-        drawerEl.style.height = '';
         startY = null;
-        setDrawerExpanded(dragged ? finalHeight > window.innerHeight * 0.75 : !drawerEl.classList.contains('expanded'));
+        if (Math.abs(delta) < 5) {
+          setDrawerExpanded(!drawerEl.classList.contains('expanded')); // הקשה בלי גרירה = toggle
+        } else {
+          setDrawerExpanded(delta > 0);
+        }
       }
       handle.addEventListener('pointerup', endDrag);
       handle.addEventListener('pointercancel', endDrag);
