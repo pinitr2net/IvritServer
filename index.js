@@ -7,7 +7,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
-const { sefariaGet, getChapter, verseFromChapter, getCommentary } = require('./sefaria');
+const { sefariaGet, getChapter, verseFromChapter, getCommentary, getCommentatorsList } = require('./sefaria');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -49,11 +49,9 @@ const TANACH_BOOKS = ['Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy'
   'Nahum', 'Habakkuk', 'Zephaniah', 'Haggai', 'Zechariah', 'Malachi', 'Psalms', 'Proverbs', 'Job', 'Song of Songs', 'Ruth',
   'Lamentations', 'Ecclesiastes', 'Esther', 'Daniel', 'Ezra', 'Nehemiah', 'I Chronicles', 'II Chronicles'];
 
-const COMMENTATORS = {
-  steinsaltz: 'Steinsaltz',
-  rashi: 'Rashi',
-  malbim: 'Malbim',
-};
+// prefix של פרשן (למשל "Steinsaltz", "Ibn_Ezra") מגיע מ-collectiveTitle.en של ספריא עצמה
+// (ראו getCommentatorsList) - לא רשימה קבועה מראש. ולידציה על תבנית בטוחה בלבד, לא whitelist סגורה.
+const COMMENTATOR_PREFIX_RE = /^[A-Za-z][A-Za-z_'.-]{0,50}$/;
 
 const AUDIO_EXTS = ['.mp3', '.m4a', '.wav', '.aac', '.ogg', '.flac', '.opus', '.wma', '.mp4', '.mov', '.avi', '.mkv', '.webm'];
 const AUDIO_MIME_TYPES = {
@@ -543,13 +541,28 @@ app.get('/lecture/*slug/data.json', async (req, res) => {
   }
 });
 
+app.get('/sefaria/commentators', async (req, res) => {
+  const book = req.query.book;
+  const chapter = Number(req.query.chapter);
+  const verse = Number(req.query.verse);
+  if (!TANACH_BOOKS.includes(book) || !Number.isInteger(chapter) || chapter < 1 || !Number.isInteger(verse) || verse < 1) {
+    return res.status(400).json({ error: 'קלט לא תקין' });
+  }
+  try {
+    const commentators = await getCommentatorsList(book, chapter, verse);
+    res.json(commentators);
+  } catch (e) {
+    console.warn('Sefaria commentators list failed:', book, chapter, verse, e.message);
+    res.status(500).json({ error: 'שגיאה בשליפת רשימת הפרשנים' });
+  }
+});
+
 app.get('/sefaria/commentary', async (req, res) => {
   const book = req.query.book;
   const chapter = Number(req.query.chapter);
   const verse = Number(req.query.verse);
-  const commentatorKey = req.query.commentator || 'steinsaltz';
-  const commentatorPrefix = COMMENTATORS[commentatorKey];
-  if (!TANACH_BOOKS.includes(book) || !Number.isInteger(chapter) || chapter < 1 || !Number.isInteger(verse) || verse < 1 || !commentatorPrefix) {
+  const commentatorPrefix = req.query.commentator || 'Steinsaltz';
+  if (!TANACH_BOOKS.includes(book) || !Number.isInteger(chapter) || chapter < 1 || !Number.isInteger(verse) || verse < 1 || !COMMENTATOR_PREFIX_RE.test(commentatorPrefix)) {
     return res.status(400).json({ error: 'קלט לא תקין' });
   }
   try {
@@ -557,7 +570,7 @@ app.get('/sefaria/commentary', async (req, res) => {
     if (!commentary.text) return res.status(404).json({ error: 'לא נמצא פירוש' });
     res.json(commentary);
   } catch (e) {
-    console.warn('Sefaria commentary lookup failed:', book, chapter, verse, commentatorKey, e.message);
+    console.warn('Sefaria commentary lookup failed:', book, chapter, verse, commentatorPrefix, e.message);
     res.status(404).json({ error: 'לא נמצא פירוש' });
   }
 });

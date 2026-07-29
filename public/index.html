@@ -569,11 +569,7 @@
     <div id="commentaryDrawerHeader">
       <div id="commentaryDrawerSelector">
         <button id="commentaryDrawerCommentatorBtn" class="commentary-tab" type="button"></button>
-        <div id="commentaryDrawerCommentatorList">
-          <button class="commentary-option" data-commentator="steinsaltz">שטיינזלץ</button>
-          <button class="commentary-option" data-commentator="rashi">רש"י</button>
-          <button class="commentary-option" data-commentator="malbim">מלבי"ם</button>
-        </div>
+        <div id="commentaryDrawerCommentatorList"></div>
       </div>
       <button id="commentaryDrawerClose" onclick="hideCommentaryDrawer()" aria-label="סגור">✕</button>
     </div>
@@ -1522,19 +1518,36 @@
       uvCurrentIdx = idx;
       renderUvActive();
       uvUpdateStickyChapter(idx);
+      // גם בניווט גלילה/מקלדת (לא רק לחיצה) - אם המגירה פתוחה, תמיד להציג את הפרשנות של הפסוק הנוכחי
+      if (commentaryDrawerVerse) showCommentaryDrawer(v);
     }
 
-    // מטמון בקליינט - למנוע יותר מבקשה אחת לאותו פירוש+פסוק
+    // מטמון בקליינט - למנוע יותר מבקשה אחת לאותה רשימת פרשנים/פירוש+פסוק
+    const commentatorsCache = new Map();
     const commentaryCache = new Map();
-    const COMMENTATOR_LABELS = { steinsaltz: 'שטיינזלץ', rashi: 'רש"י', malbim: 'מלבי"ם' };
     // localStorage מבוטל גלובלית באפליקציה (ראה ההערה למעלה) - sessionStorage לא מושפע ממנו,
     // ונשאר אחרי רענון (גם אם לא אחרי סגירת הטאב, מספיק לצורך "נישאר עם הפרשן הזה")
-    let commentaryDrawerCommentator = sessionStorage.getItem('commentaryCommentator') || 'steinsaltz';
-    if (!COMMENTATOR_LABELS[commentaryDrawerCommentator]) commentaryDrawerCommentator = 'steinsaltz';
+    let commentaryPreferredCommentator = sessionStorage.getItem('commentaryCommentator') || null;
+    let commentaryDrawerCommentator = null; // ה-prefix הנבחר בפועל לפסוק הפתוח כרגע (למשל "Steinsaltz")
+    let commentaryDrawerCommentators = []; // רשימת הפרשנים הזמינים בפועל לפסוק הזה, מספריא
     let commentaryDrawerVerse = null;
 
     function commentaryCacheKey(v, commentator) {
       return `${v.book}|${v.chapterNum}|${v.verseNum}|${commentator}`;
+    }
+
+    async function fetchCommentatorsList(v) {
+      const key = `${v.book}|${v.chapterNum}|${v.verseNum}`;
+      if (commentatorsCache.has(key)) return commentatorsCache.get(key);
+      let result;
+      try {
+        const res = await fetch(`/sefaria/commentators?book=${encodeURIComponent(v.book)}&chapter=${v.chapterNum}&verse=${v.verseNum}`);
+        result = res.ok ? await res.json() : [];
+      } catch (e) {
+        result = [];
+      }
+      commentatorsCache.set(key, result);
+      return result;
     }
 
     async function fetchCommentary(v, commentator) {
@@ -1542,13 +1555,20 @@
       if (commentaryCache.has(key)) return commentaryCache.get(key);
       let result;
       try {
-        const res = await fetch(`/sefaria/commentary?book=${encodeURIComponent(v.book)}&chapter=${v.chapterNum}&verse=${v.verseNum}&commentator=${commentator}`);
+        const res = await fetch(`/sefaria/commentary?book=${encodeURIComponent(v.book)}&chapter=${v.chapterNum}&verse=${v.verseNum}&commentator=${encodeURIComponent(commentator)}`);
         result = res.ok ? await res.json() : { error: true };
       } catch (e) {
         result = { error: true };
       }
       commentaryCache.set(key, result);
       return result;
+    }
+
+    function renderCommentatorOptions() {
+      const listEl = document.getElementById('commentaryDrawerCommentatorList');
+      listEl.innerHTML = commentaryDrawerCommentators.map(c =>
+        `<button class="commentary-option${c.prefix === commentaryDrawerCommentator ? ' active' : ''}" data-commentator="${escHtml(c.prefix)}">${escHtml(c.label)}</button>`
+      ).join('');
     }
 
     function renderCommentaryDrawer() {
@@ -1558,8 +1578,13 @@
       const bodyEl = document.getElementById('commentaryDrawerBody');
       const btnEl = document.getElementById('commentaryDrawerCommentatorBtn');
       refEl.textContent = v.text.length > 50 ? v.text.slice(0, 50) + '…' : v.text;
-      btnEl.textContent = `${COMMENTATOR_LABELS[commentaryDrawerCommentator]} ▾`;
-      document.querySelectorAll('.commentary-option').forEach(el => el.classList.toggle('active', el.dataset.commentator === commentaryDrawerCommentator));
+      if (!commentaryDrawerCommentator) {
+        btnEl.textContent = 'אין פירוש';
+        bodyEl.textContent = 'אין פירוש זמין לפסוק זה';
+        return;
+      }
+      const current = commentaryDrawerCommentators.find(c => c.prefix === commentaryDrawerCommentator);
+      btnEl.textContent = `${current ? current.label : commentaryDrawerCommentator} ▾`;
       const data = commentaryCache.get(commentaryCacheKey(v, commentaryDrawerCommentator));
       if (!data) {
         bodyEl.textContent = 'טוען...';
@@ -1570,22 +1595,22 @@
       }
     }
 
-    // גובה המגירה מגיע עד קצת מתחת לשורת הפסוק הפעיל, לא ערך קבוע - עם רצפה של 20% מגובה המסך
+    // גובה המגירה נקבע לפי מיקום שורת הפסוק הפעיל בפועל - תמיד מתחתיה, אף פעם לא מכסה אותה
+    // (גם אם זה אומר גובה קטן מהרגיל, כשהפסוק ארוך ויושב נמוך במסך)
     function positionCommentaryDrawer() {
       const drawer = document.getElementById('commentaryDrawer');
       const activeRow = document.querySelector('.uv-row.uv-active');
-      const minHeight = window.innerHeight * 0.2;
-      if (!activeRow) { drawer.style.height = `${minHeight}px`; return; }
+      if (!activeRow) { drawer.style.height = `${window.innerHeight * 0.3}px`; return; }
       const gap = 10;
       const top = activeRow.getBoundingClientRect().bottom + gap;
-      drawer.style.height = `${Math.max(window.innerHeight - top, minHeight)}px`;
+      drawer.style.height = `${Math.max(window.innerHeight - top, 60)}px`;
     }
 
     function closeCommentaryList() {
       document.getElementById('commentaryDrawerCommentatorList').classList.remove('open');
     }
 
-    function showCommentaryDrawer(v) {
+    async function showCommentaryDrawer(v) {
       commentaryDrawerVerse = v;
       document.getElementById('srtPlayer').pause();
       document.getElementById('commentaryDrawer').classList.add('open');
@@ -1594,9 +1619,23 @@
       // דחייה לפריים הבא - לוגיקת ה-scroll loop הרציפה (startUvScrollLoop) מזיזה את הפסוק הפעיל
       // למקומו הסופי ב-transform באותו פריים, אחרי ש-uvSeekTo כבר עדכן את uvCurrentIdx
       requestAnimationFrame(() => positionCommentaryDrawer());
-      fetchCommentary(v, commentaryDrawerCommentator).then(() => {
-        if (v === commentaryDrawerVerse) renderCommentaryDrawer();
-      });
+
+      const commentators = await fetchCommentatorsList(v);
+      if (v !== commentaryDrawerVerse) return; // המשתמש כבר עבר לפסוק אחר בזמן ההמתנה לתשובה
+      commentaryDrawerCommentators = commentators;
+      if (!commentators.some(c => c.prefix === commentaryDrawerCommentator)) {
+        // ברירת המחדל: הפרשן שנשמר מקודם אם קיים ברשימה, אחרת שטיינזלץ אם קיים, אחרת הראשון ברשימה
+        commentaryDrawerCommentator = commentators.some(c => c.prefix === commentaryPreferredCommentator) ? commentaryPreferredCommentator
+          : commentators.some(c => c.prefix === 'Steinsaltz') ? 'Steinsaltz'
+          : (commentators[0] ? commentators[0].prefix : null);
+      }
+      renderCommentatorOptions();
+      renderCommentaryDrawer();
+      if (commentaryDrawerCommentator) {
+        fetchCommentary(v, commentaryDrawerCommentator).then(() => {
+          if (v === commentaryDrawerVerse) renderCommentaryDrawer();
+        });
+      }
     }
 
     function hideCommentaryDrawer() {
@@ -1609,18 +1648,22 @@
       e.stopPropagation();
       document.getElementById('commentaryDrawerCommentatorList').classList.toggle('open');
     });
-    document.querySelectorAll('.commentary-option').forEach(opt => {
-      opt.addEventListener('click', (e) => {
-        e.stopPropagation();
-        closeCommentaryList();
-        if (opt.dataset.commentator === commentaryDrawerCommentator) return;
-        commentaryDrawerCommentator = opt.dataset.commentator;
-        sessionStorage.setItem('commentaryCommentator', commentaryDrawerCommentator);
-        renderCommentaryDrawer();
-        const v = commentaryDrawerVerse;
-        if (v) fetchCommentary(v, commentaryDrawerCommentator).then(() => {
-          if (v === commentaryDrawerVerse) renderCommentaryDrawer();
-        });
+    // הרשימה נבנית מחדש בכל פתיחה (commentaryDrawerCommentators משתנה לפי פסוק) - מאזין יחיד ב-delegation
+    document.getElementById('commentaryDrawerCommentatorList').addEventListener('click', (e) => {
+      const opt = e.target.closest('.commentary-option');
+      if (!opt) return;
+      e.stopPropagation();
+      closeCommentaryList();
+      const prefix = opt.dataset.commentator;
+      if (prefix === commentaryDrawerCommentator) return;
+      commentaryDrawerCommentator = prefix;
+      commentaryPreferredCommentator = prefix;
+      sessionStorage.setItem('commentaryCommentator', prefix);
+      renderCommentatorOptions();
+      renderCommentaryDrawer();
+      const v = commentaryDrawerVerse;
+      if (v) fetchCommentary(v, prefix).then(() => {
+        if (v === commentaryDrawerVerse) renderCommentaryDrawer();
       });
     });
     // סגירת רשימת הפרשנים בלחיצה מחוץ לה
@@ -1641,19 +1684,13 @@
       if (linkerMode) return; // הפסוק הוא לינק אמיתי לספריא - נותנים לניווט הדפדפן הרגיל לקרות
       const idx = parseInt(row.dataset.idx, 10);
       if (Number.isNaN(idx)) return;
-      if (commentaryDrawerVerse) {
-        // המגירה פתוחה - לחיצה על פסוק (גם אחר) הופכת אותו לנוכחי ומציגה את הפרשנות שלו, בלי toggle play/pause
-        if (idx !== uvCurrentIdx) uvSeekTo(idx);
-        const v = uvVerses[idx];
-        if (v) showCommentaryDrawer(v);
-        return;
-      }
       if (idx === uvCurrentIdx) {
+        if (commentaryDrawerVerse) return; // כבר מוצג - בלי toggle play/pause כשהמגירה פתוחה
         const audio = document.getElementById('srtPlayer');
         if (audio.paused) audio.play(); else audio.pause();
         return;
       }
-      uvSeekTo(idx);
+      uvSeekTo(idx); // מעדכן גם את המגירה בעצמו אם היא פתוחה (ראו uvSeekTo)
     });
 
     function uvNavigate(direction) {

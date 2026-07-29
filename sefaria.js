@@ -78,4 +78,20 @@ async function getCommentary(bookEn, chapterNum, verseNum, commentatorPrefix) {
   return { heRef, text };
 }
 
-module.exports = { sefariaGet, getChapter, verseFromChapter, getCommentary };
+// רשימת הפרשנים שקיימים בפועל בספריא לפסוק הזה (לא רשימה קבועה מראש) - "links" מחזיר גם
+// מדרש/תלמוד/מאמרים וכו', מסננים לקטגוריית Commentary בלבד. collectiveTitle.en (עם רווחים
+// מוחלפים ב-קו תחתון) הוא בדיוק ה-prefix שמשמש את /texts/{prefix}_on_{Book}...
+async function getCommentatorsList(bookEn, chapterNum, verseNum) {
+  const data = await sefariaGet(`/links/${bookEn}.${chapterNum}.${verseNum}?with_text=0`);
+  const seen = new Map();
+  for (const item of Array.isArray(data) ? data : []) {
+    if (item.category !== 'Commentary') continue;
+    const en = item.collectiveTitle && item.collectiveTitle.en;
+    if (!en || seen.has(en)) continue;
+    const he = item.collectiveTitle && item.collectiveTitle.he;
+    seen.set(en, { prefix: en.replace(/\s+/g, '_'), label: he || en });
+  }
+  return [...seen.values()];
+}
+
+module.exports = { sefariaGet, getChapter, verseFromChapter, getCommentary, getCommentatorsList };
