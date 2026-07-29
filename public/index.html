@@ -349,14 +349,6 @@
       color: #fff;
       cursor: pointer;
     }
-    #commentaryDrawerBackdrop {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 490;
-      background: rgba(0,0,0,0.4);
-    }
-    #commentaryDrawerBackdrop.open { display: block; }
     #commentaryDrawer {
       position: fixed;
       left: 0;
@@ -374,15 +366,16 @@
       direction: rtl;
       padding: 0.75rem 1.25rem 1.25rem;
       box-sizing: border-box;
+      pointer-events: none;
     }
-    #commentaryDrawer.open { transform: translateY(0); }
+    #commentaryDrawer.open { transform: translateY(0); pointer-events: auto; }
     #commentaryDrawerHeader {
       display: flex;
       align-items: center;
       justify-content: space-between;
       flex-shrink: 0;
     }
-    #commentaryDrawerTabs { display: flex; gap: 0.5rem; }
+    #commentaryDrawerSelector { position: relative; }
     .commentary-tab {
       padding: 0.35rem 0.9rem;
       border: 1px solid #cbd5e1;
@@ -392,7 +385,34 @@
       font-size: 0.9rem;
       cursor: pointer;
     }
-    .commentary-tab.active { background: #1e293b; color: #fff; border-color: #1e293b; }
+    #commentaryDrawerCommentatorList {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 0.3rem;
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      overflow: hidden;
+      z-index: 10;
+      min-width: 110px;
+    }
+    #commentaryDrawerCommentatorList.open { display: block; }
+    .commentary-option {
+      display: block;
+      width: 100%;
+      padding: 0.5rem 1rem;
+      border: none;
+      background: #fff;
+      color: #334155;
+      font-size: 0.9rem;
+      text-align: right;
+      cursor: pointer;
+    }
+    .commentary-option:hover { background: #f1f5f9; }
+    .commentary-option.active { font-weight: 700; color: #1e293b; }
     #commentaryDrawerClose {
       border: none;
       background: none;
@@ -545,13 +565,15 @@
       <button onclick="hideCommitInfo()">סגור</button>
     </div>
   </div>
-  <div id="commentaryDrawerBackdrop" onclick="hideCommentaryDrawer()"></div>
   <div id="commentaryDrawer">
     <div id="commentaryDrawerHeader">
-      <div id="commentaryDrawerTabs">
-        <button class="commentary-tab" data-commentator="steinsaltz">שטיינזלץ</button>
-        <button class="commentary-tab" data-commentator="rashi">רש"י</button>
-        <button class="commentary-tab" data-commentator="malbim">מלבי"ם</button>
+      <div id="commentaryDrawerSelector">
+        <button id="commentaryDrawerCommentatorBtn" class="commentary-tab" type="button"></button>
+        <div id="commentaryDrawerCommentatorList">
+          <button class="commentary-option" data-commentator="steinsaltz">שטיינזלץ</button>
+          <button class="commentary-option" data-commentator="rashi">רש"י</button>
+          <button class="commentary-option" data-commentator="malbim">מלבי"ם</button>
+        </div>
       </div>
       <button id="commentaryDrawerClose" onclick="hideCommentaryDrawer()" aria-label="סגור">✕</button>
     </div>
@@ -1504,9 +1526,12 @@
 
     // מטמון בקליינט - למנוע יותר מבקשה אחת לאותו פירוש+פסוק
     const commentaryCache = new Map();
-    const COMMENTATOR_KEYS = ['steinsaltz', 'rashi', 'malbim'];
+    const COMMENTATOR_LABELS = { steinsaltz: 'שטיינזלץ', rashi: 'רש"י', malbim: 'מלבי"ם' };
+    // localStorage מבוטל גלובלית באפליקציה (ראה ההערה למעלה) - sessionStorage לא מושפע ממנו,
+    // ונשאר אחרי רענון (גם אם לא אחרי סגירת הטאב, מספיק לצורך "נישאר עם הפרשן הזה")
+    let commentaryDrawerCommentator = sessionStorage.getItem('commentaryCommentator') || 'steinsaltz';
+    if (!COMMENTATOR_LABELS[commentaryDrawerCommentator]) commentaryDrawerCommentator = 'steinsaltz';
     let commentaryDrawerVerse = null;
-    let commentaryDrawerCommentator = 'steinsaltz';
 
     function commentaryCacheKey(v, commentator) {
       return `${v.book}|${v.chapterNum}|${v.verseNum}|${commentator}`;
@@ -1526,53 +1551,81 @@
       return result;
     }
 
-    // מציגה מה שכבר יש במטמון לפרשן הנבחר כרגע - לא שולפת בעצמה (השליפה מתבצעת מראש בקבוצה ב-showCommentaryDrawer)
     function renderCommentaryDrawer() {
       const v = commentaryDrawerVerse;
       if (!v) return;
       const refEl = document.getElementById('commentaryDrawerRef');
       const bodyEl = document.getElementById('commentaryDrawerBody');
+      const btnEl = document.getElementById('commentaryDrawerCommentatorBtn');
+      refEl.textContent = v.text.length > 50 ? v.text.slice(0, 50) + '…' : v.text;
+      btnEl.textContent = `${COMMENTATOR_LABELS[commentaryDrawerCommentator]} ▾`;
+      document.querySelectorAll('.commentary-option').forEach(el => el.classList.toggle('active', el.dataset.commentator === commentaryDrawerCommentator));
       const data = commentaryCache.get(commentaryCacheKey(v, commentaryDrawerCommentator));
       if (!data) {
-        refEl.textContent = '';
         bodyEl.textContent = 'טוען...';
       } else if (data.error || !data.text) {
-        refEl.textContent = '';
         bodyEl.textContent = 'אין פירוש זמין לפסוק זה';
       } else {
-        refEl.textContent = data.heRef || '';
         bodyEl.textContent = data.text;
       }
     }
 
+    // גובה המגירה מגיע עד קצת מתחת לשורת הפסוק הפעיל, לא ערך קבוע - עם רצפה של 20% מגובה המסך
+    function positionCommentaryDrawer() {
+      const drawer = document.getElementById('commentaryDrawer');
+      const activeRow = document.querySelector('.uv-row.uv-active');
+      const minHeight = window.innerHeight * 0.2;
+      if (!activeRow) { drawer.style.height = `${minHeight}px`; return; }
+      const gap = 10;
+      const top = activeRow.getBoundingClientRect().bottom + gap;
+      drawer.style.height = `${Math.max(window.innerHeight - top, minHeight)}px`;
+    }
+
+    function closeCommentaryList() {
+      document.getElementById('commentaryDrawerCommentatorList').classList.remove('open');
+    }
+
     function showCommentaryDrawer(v) {
       commentaryDrawerVerse = v;
-      commentaryDrawerCommentator = 'steinsaltz';
-      document.querySelectorAll('.commentary-tab').forEach(el => el.classList.toggle('active', el.dataset.commentator === commentaryDrawerCommentator));
+      document.getElementById('srtPlayer').pause();
       document.getElementById('commentaryDrawer').classList.add('open');
-      document.getElementById('commentaryDrawerBackdrop').classList.add('open');
+      closeCommentaryList();
       renderCommentaryDrawer();
-      // שליפת שלושת הפרשנים ביחד בלחיצה אחת - מעבר בין טאבים אחר כך הוא מיידי, מהמטמון בלבד
-      COMMENTATOR_KEYS.forEach(commentator => {
-        fetchCommentary(v, commentator).then(() => {
-          if (v === commentaryDrawerVerse && commentator === commentaryDrawerCommentator) renderCommentaryDrawer();
-        });
+      // דחייה לפריים הבא - לוגיקת ה-scroll loop הרציפה (startUvScrollLoop) מזיזה את הפסוק הפעיל
+      // למקומו הסופי ב-transform באותו פריים, אחרי ש-uvSeekTo כבר עדכן את uvCurrentIdx
+      requestAnimationFrame(() => positionCommentaryDrawer());
+      fetchCommentary(v, commentaryDrawerCommentator).then(() => {
+        if (v === commentaryDrawerVerse) renderCommentaryDrawer();
       });
     }
 
     function hideCommentaryDrawer() {
       document.getElementById('commentaryDrawer').classList.remove('open');
-      document.getElementById('commentaryDrawerBackdrop').classList.remove('open');
+      closeCommentaryList();
       commentaryDrawerVerse = null;
     }
 
-    document.querySelectorAll('.commentary-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        if (tab.dataset.commentator === commentaryDrawerCommentator) return;
-        commentaryDrawerCommentator = tab.dataset.commentator;
-        document.querySelectorAll('.commentary-tab').forEach(el => el.classList.toggle('active', el === tab));
+    document.getElementById('commentaryDrawerCommentatorBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.getElementById('commentaryDrawerCommentatorList').classList.toggle('open');
+    });
+    document.querySelectorAll('.commentary-option').forEach(opt => {
+      opt.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeCommentaryList();
+        if (opt.dataset.commentator === commentaryDrawerCommentator) return;
+        commentaryDrawerCommentator = opt.dataset.commentator;
+        sessionStorage.setItem('commentaryCommentator', commentaryDrawerCommentator);
         renderCommentaryDrawer();
+        const v = commentaryDrawerVerse;
+        if (v) fetchCommentary(v, commentaryDrawerCommentator).then(() => {
+          if (v === commentaryDrawerVerse) renderCommentaryDrawer();
+        });
       });
+    });
+    // סגירת רשימת הפרשנים בלחיצה מחוץ לה
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#commentaryDrawerSelector')) closeCommentaryList();
     });
 
     document.getElementById('uvTrack').addEventListener('click', (e) => {
@@ -1588,6 +1641,13 @@
       if (linkerMode) return; // הפסוק הוא לינק אמיתי לספריא - נותנים לניווט הדפדפן הרגיל לקרות
       const idx = parseInt(row.dataset.idx, 10);
       if (Number.isNaN(idx)) return;
+      if (commentaryDrawerVerse) {
+        // המגירה פתוחה - לחיצה על פסוק (גם אחר) הופכת אותו לנוכחי ומציגה את הפרשנות שלו, בלי toggle play/pause
+        if (idx !== uvCurrentIdx) uvSeekTo(idx);
+        const v = uvVerses[idx];
+        if (v) showCommentaryDrawer(v);
+        return;
+      }
       if (idx === uvCurrentIdx) {
         const audio = document.getElementById('srtPlayer');
         if (audio.paused) audio.play(); else audio.pause();
