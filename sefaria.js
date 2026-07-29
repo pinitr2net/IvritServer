@@ -66,32 +66,53 @@ function verseFromChapter(chapterData, verseNum) {
 }
 
 // כל פירוש (שטיינזלץ/רש"י/מלבי"ם/...) מאונדקס בספריא כטקסט רגיל (לא רק כ"קישור"),
-// בפורמט ref קבוע "{Commentator}_on_{Book}" - עם context=0 מקבלים בדיוק את הפסוק
-// המבוקש (לא פרק שלם), מתאים לשליפה על-פי דרישה של פסוק בודד
-async function getCommentary(bookEn, chapterNum, verseNum, commentatorPrefix) {
-  const data = await sefariaGet(`/texts/${commentatorPrefix}_on_${bookEn}.${chapterNum}.${verseNum}?context=0`);
-  const heRef = data.heRef ?? null;
-  // חלק מהפרשנים (כמו רש"י/מלבי"ם) מחזירים כמה הערות נפרדות לאותו פסוק כמערך, גם ב-context=0 -
-  // בניגוד לשטיינזלץ שמחזיר מחרוזת בודדת. מאחדים את שני המקרים לטקסט אחד.
-  const heParts = Array.isArray(data.he) ? data.he : (typeof data.he === 'string' ? [data.he] : []);
-  const text = heParts.map(stripHtml).filter(Boolean).join(' ') || null;
-  return { heRef, text };
+// בפורמט ref קבוע "{Commentator}_on_{Book}". בקשת טווח "min-max" *אמורה* להחזיר isSpanning:true
+// עם he כמערך מקונן פר-פסוק - אבל זה נכון רק לפרשנים "מורכבים" (כמה הערות לפסוק, כמו רש"י).
+// לפרשנים "פשוטים" (הערה אחת לפסוק, כמו שטיינזלץ) ספריא תמיד עונה isSpanning:false ומחזירה
+// את **כל הפרק** (מפסוק א') בלי קשר לטווח שביקשנו בכלל - isSpanning לא מבחין בין שני המצבים!
+// הסימן האמין: sectionRef. "X on Book N" (בלי נקודתיים) = כל הפרק חזר, he[i] הוא פסוק i+1.
+// "X on Book N:M" (עם נקודתיים) = פסוק/טווח אמיתי - כאן isSpanning כן אמין להבחין טווח מפסוק בודד.
+async function getCommentaryRange(bookEn, chapterNum, minVerse, maxVerse, commentatorPrefix) {
+  const data = await sefariaGet(`/texts/${commentatorPrefix}_on_${bookEn}.${chapterNum}.${minVerse}-${maxVerse}`);
+  const byVerse = new Map();
+  const toText = parts => (Array.isArray(parts) ? parts : (typeof parts === 'string' ? [parts] : []))
+    .map(stripHtml).filter(Boolean).join(' ') || null;
+  const heArr = Array.isArray(data.he) ? data.he : [];
+  if (!/:/.test(data.sectionRef || '')) {
+    // נפל חזרה לכל הפרק (פרשן "פשוט") - he[i] הוא פסוק i+1 מתחילת הפרק, לא מתחילת minVerse
+    heArr.forEach((el, i) => byVerse.set(i + 1, toText(el)));
+    return byVerse;
+  }
+  if (data.isSpanning) {
+    heArr.forEach((el, i) => byVerse.set(minVerse + i, toText(el)));
+    return byVerse;
+  }
+  // טווח קורס לפסוק בודד אחד (min===max) - כל he שייך לאותו פסוק יחיד, לא מחולק פר-פסוק
+  byVerse.set(minVerse, toText(data.he));
+  return byVerse;
 }
 
-// רשימת הפרשנים שקיימים בפועל בספריא לפסוק הזה (לא רשימה קבועה מראש) - "links" מחזיר גם
+// רשימת הפרשנים שקיימים בפועל בספריא לכל פסוק בטווח (לא רשימה קבועה מראש) - "links" מחזיר גם
 // מדרש/תלמוד/מאמרים וכו', מסננים לקטגוריית Commentary בלבד. collectiveTitle.en (עם רווחים
-// מוחלפים ב-קו תחתון) הוא בדיוק ה-prefix שמשמש את /texts/{prefix}_on_{Book}...
-async function getCommentatorsList(bookEn, chapterNum, verseNum) {
-  const data = await sefariaGet(`/links/${bookEn}.${chapterNum}.${verseNum}?with_text=0`);
-  const seen = new Map();
+// מוחלפים ב-קו תחתון) הוא בדיוק ה-prefix שמשמש את /texts/{prefix}_on_{Book}... בקשה אחת לכל
+// הטווח (למשל כל הפרק שהשיעור מכסה) במקום בקשה נפרדת לכל פסוק.
+async function getCommentatorsByVerseRange(bookEn, chapterNum, minVerse, maxVerse) {
+  const data = await sefariaGet(`/links/${bookEn}.${chapterNum}.${minVerse}-${maxVerse}?with_text=0`);
+  const byVerse = new Map(); // verseNum -> [{prefix,label}]
+  const seenPerVerse = new Map(); // verseNum -> Set(prefix) למניעת כפילויות
   for (const item of Array.isArray(data) ? data : []) {
     if (item.category !== 'Commentary') continue;
+    const verseNum = item.anchorVerse;
     const en = item.collectiveTitle && item.collectiveTitle.en;
-    if (!en || seen.has(en)) continue;
+    if (!verseNum || !en) continue;
+    if (!seenPerVerse.has(verseNum)) { byVerse.set(verseNum, []); seenPerVerse.set(verseNum, new Set()); }
+    const seen = seenPerVerse.get(verseNum);
+    if (seen.has(en)) continue;
+    seen.add(en);
     const he = item.collectiveTitle && item.collectiveTitle.he;
-    seen.set(en, { prefix: en.replace(/\s+/g, '_'), label: he || en });
+    byVerse.get(verseNum).push({ prefix: en.replace(/\s+/g, '_'), label: he || en });
   }
-  return [...seen.values()];
+  return byVerse;
 }
 
-module.exports = { sefariaGet, getChapter, verseFromChapter, getCommentary, getCommentatorsList };
+module.exports = { sefariaGet, getChapter, verseFromChapter, getCommentaryRange, getCommentatorsByVerseRange };

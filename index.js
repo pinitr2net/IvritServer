@@ -7,7 +7,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
-const { sefariaGet, getChapter, verseFromChapter, getCommentary, getCommentatorsList } = require('./sefaria');
+const { sefariaGet, getChapter, verseFromChapter, getCommentaryRange, getCommentatorsByVerseRange } = require('./sefaria');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -50,8 +50,10 @@ const TANACH_BOOKS = ['Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy'
   'Lamentations', 'Ecclesiastes', 'Esther', 'Daniel', 'Ezra', 'Nehemiah', 'I Chronicles', 'II Chronicles'];
 
 // prefix של פרשן (למשל "Steinsaltz", "Ibn_Ezra") מגיע מ-collectiveTitle.en של ספריא עצמה
-// (ראו getCommentatorsList) - לא רשימה קבועה מראש. ולידציה על תבנית בטוחה בלבד, לא whitelist סגורה.
+// (ראו getCommentatorsByVerseRange) - לא רשימה קבועה מראש. ולידציה על תבנית בטוחה בלבד, לא whitelist סגורה.
 const COMMENTATOR_PREFIX_RE = /^[A-Za-z][A-Za-z_'.-]{0,50}$/;
+// אין פרק תנ"ך ארוך מ-176 פסוקים (תהילים קי"ט) - חסם סביר נגד טווח מוגזם
+const MAX_VERSE_RANGE = 176;
 
 const AUDIO_EXTS = ['.mp3', '.m4a', '.wav', '.aac', '.ogg', '.flac', '.opus', '.wma', '.mp4', '.mov', '.avi', '.mkv', '.webm'];
 const AUDIO_MIME_TYPES = {
@@ -541,36 +543,40 @@ app.get('/lecture/*slug/data.json', async (req, res) => {
   }
 });
 
-app.get('/sefaria/commentators', async (req, res) => {
+function parseVerseRange(req) {
   const book = req.query.book;
   const chapter = Number(req.query.chapter);
-  const verse = Number(req.query.verse);
-  if (!TANACH_BOOKS.includes(book) || !Number.isInteger(chapter) || chapter < 1 || !Number.isInteger(verse) || verse < 1) {
-    return res.status(400).json({ error: 'קלט לא תקין' });
-  }
+  const minVerse = Number(req.query.minVerse);
+  const maxVerse = Number(req.query.maxVerse);
+  const valid = TANACH_BOOKS.includes(book) && Number.isInteger(chapter) && chapter >= 1
+    && Number.isInteger(minVerse) && minVerse >= 1 && Number.isInteger(maxVerse) && maxVerse >= minVerse
+    && (maxVerse - minVerse) <= MAX_VERSE_RANGE;
+  return { book, chapter, minVerse, maxVerse, valid };
+}
+
+app.get('/sefaria/commentators', async (req, res) => {
+  const { book, chapter, minVerse, maxVerse, valid } = parseVerseRange(req);
+  if (!valid) return res.status(400).json({ error: 'קלט לא תקין' });
   try {
-    const commentators = await getCommentatorsList(book, chapter, verse);
-    res.json(commentators);
+    const byVerse = await getCommentatorsByVerseRange(book, chapter, minVerse, maxVerse);
+    res.json(Object.fromEntries(byVerse));
   } catch (e) {
-    console.warn('Sefaria commentators list failed:', book, chapter, verse, e.message);
+    console.warn('Sefaria commentators list failed:', book, chapter, minVerse, maxVerse, e.message);
     res.status(500).json({ error: 'שגיאה בשליפת רשימת הפרשנים' });
   }
 });
 
 app.get('/sefaria/commentary', async (req, res) => {
-  const book = req.query.book;
-  const chapter = Number(req.query.chapter);
-  const verse = Number(req.query.verse);
+  const { book, chapter, minVerse, maxVerse, valid } = parseVerseRange(req);
   const commentatorPrefix = req.query.commentator || 'Steinsaltz';
-  if (!TANACH_BOOKS.includes(book) || !Number.isInteger(chapter) || chapter < 1 || !Number.isInteger(verse) || verse < 1 || !COMMENTATOR_PREFIX_RE.test(commentatorPrefix)) {
+  if (!valid || !COMMENTATOR_PREFIX_RE.test(commentatorPrefix)) {
     return res.status(400).json({ error: 'קלט לא תקין' });
   }
   try {
-    const commentary = await getCommentary(book, chapter, verse, commentatorPrefix);
-    if (!commentary.text) return res.status(404).json({ error: 'לא נמצא פירוש' });
-    res.json(commentary);
+    const byVerse = await getCommentaryRange(book, chapter, minVerse, maxVerse, commentatorPrefix);
+    res.json(Object.fromEntries(byVerse));
   } catch (e) {
-    console.warn('Sefaria commentary lookup failed:', book, chapter, verse, commentatorPrefix, e.message);
+    console.warn('Sefaria commentary range lookup failed:', book, chapter, minVerse, maxVerse, commentatorPrefix, e.message);
     res.status(404).json({ error: 'לא נמצא פירוש' });
   }
 });

@@ -349,24 +349,41 @@
       color: #fff;
       cursor: pointer;
     }
-    /* בזרימה רגילה (לא position:fixed) בתוך #userView - כשנפתחת, גובהה "לוקח" שטח מ-#userViewVerses
-       (flex:1 1 auto), וזה גורם ללולאת המיקום הרציפה של הקרוסלה (uvPositionTrack, שרצה בכל frame)
-       לעדכן את עוגן הפסוק הפעיל בזמן אמת מול השטח שנשאר - בלי שום מדידה/חישוב ידני מהצד שלנו */
+    /* חזרה ל-position:fixed (שכבה מעל, לא בזרימה של #userView) - גובה קבוע כדי שטקסט הפסוק
+       מאחורי המגירה לא יזוז/ייצמד מחדש כשהיא נפתחת. בלי מיסוך - עדיין אפשר ללחוץ על פסוק אחר
+       מתחת למגירה (השטח שמעליה נשאר חופשי לגמרי). #commentaryDrawer עצמו הוא אח של #userView,
+       לא בתוכו - כך שגלגול/מגע בתוך המגירה לא "דולף" למאזיני ה-wheel/touch שרשומים על #userView. */
     #commentaryDrawer {
-      flex-shrink: 0;
-      height: 0;
-      overflow: hidden;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 500;
       background: #fff;
       border-radius: 16px 16px 0 0;
       box-shadow: 0 -4px 24px rgba(0,0,0,0.3);
+      height: 40vh;
       display: flex;
       flex-direction: column;
-      transition: height 0.3s ease;
+      transform: translateY(100%);
+      transition: transform 0.3s ease, height 0.3s ease, border-radius 0.3s ease;
       direction: rtl;
-      padding: 0.75rem 1.25rem 1.25rem;
+      padding: 0 1.25rem 1.25rem;
       box-sizing: border-box;
+      pointer-events: none;
     }
-    #commentaryDrawer.open { height: 55vh; }
+    #commentaryDrawer.open { transform: translateY(0); pointer-events: auto; }
+    #commentaryDrawer.open.expanded { height: 100vh; border-radius: 0; }
+    #commentaryDrawerHandle {
+      flex-shrink: 0;
+      width: 40px;
+      height: 5px;
+      border-radius: 3px;
+      background: #cbd5e1;
+      margin: 0.6rem auto 0.5rem;
+      cursor: grab;
+      touch-action: none;
+    }
     #commentaryDrawerHeader {
       display: flex;
       align-items: center;
@@ -642,18 +659,20 @@
     <div id="userViewVerses">
       <div id="uvTrack"></div>
     </div>
-    <div id="commentaryDrawer">
-      <div id="commentaryDrawerHeader">
-        <div id="commentaryDrawerSelector">
-          <button id="commentaryDrawerCommentatorBtn" class="commentary-tab" type="button"></button>
-          <div id="commentaryDrawerCommentatorList"></div>
-        </div>
-        <button id="commentaryDrawerClose" onclick="hideCommentaryDrawer()" aria-label="סגור">✕</button>
-      </div>
-      <div id="commentaryDrawerRef"></div>
-      <div id="commentaryDrawerBody"></div>
-    </div>
     <div id="userViewCaption" style="display:none;"></div>
+  </div>
+
+  <div id="commentaryDrawer">
+    <div id="commentaryDrawerHandle"></div>
+    <div id="commentaryDrawerHeader">
+      <div id="commentaryDrawerSelector">
+        <button id="commentaryDrawerCommentatorBtn" class="commentary-tab" type="button"></button>
+        <div id="commentaryDrawerCommentatorList"></div>
+      </div>
+      <button id="commentaryDrawerClose" onclick="hideCommentaryDrawer()" aria-label="סגור">✕</button>
+    </div>
+    <div id="commentaryDrawerRef"></div>
+    <div id="commentaryDrawerBody"></div>
   </div>
 
   <script>
@@ -1515,12 +1534,17 @@
       renderUvActive();
       uvUpdateStickyChapter(idx);
       // גם בניווט גלילה/מקלדת (לא רק לחיצה) - אם המגירה פתוחה, תמיד להציג את הפרשנות של הפסוק הנוכחי
-      if (commentaryDrawerVerse) showCommentaryDrawer(v);
+      // (updateCommentaryDrawerForVerse ולא showCommentaryDrawer - אין צורך לעצור ניגון/לפתוח שוב, כבר טופל למעלה)
+      if (commentaryDrawerVerse) updateCommentaryDrawerForVerse(v);
     }
 
-    // מטמון בקליינט - למנוע יותר מבקשה אחת לאותה רשימת פרשנים/פירוש+פסוק
-    const commentatorsCache = new Map();
-    const commentaryCache = new Map();
+    // מטמון בקליינט - לכל הפרק בבת אחת (לא פסוק-פסוק), כדי שגלילה בין פסוקים באותו פרק לא תיצור
+    // בקשות נוספות. שומרים גם את ה-Promise (למניעת בקשות כפולות בזמן טעינה) וגם את הערך שנפתר
+    // (לרינדור סינכרוני מיידי כשהמידע כבר קיים - בלי הבהוב "טוען..." בין פסוקים).
+    const commentaryChapterCache = new Map(); // key: book|chapter|commentator -> Promise<{verseNum: text|null}>
+    const resolvedCommentaryChapters = new Map(); // אותו key -> התוצאה שנפתרה בפועל
+    const commentatorsChapterCache = new Map(); // key: book|chapter -> Promise<{verseNum: [{prefix,label}]}>
+    const resolvedCommentatorsChapters = new Map();
     // prefix -> label בעברית, נאסף מכל פעם שרשימת פרשנים נשלפה (לתצוגת כפתור בלי לשלוף רשימה מחדש) -
     // עם ערך זרוע מראש לברירת המחדל, כדי שהכפתור לא יראה "Steinsaltz" באנגלית לפני שהרשימה נפתחה ולו פעם אחת
     const commentatorLabels = new Map([['Steinsaltz', 'שטיינזלץ']]);
@@ -1529,55 +1553,62 @@
     let commentaryDrawerCommentator = sessionStorage.getItem('commentaryCommentator') || 'Steinsaltz';
     let commentaryDrawerVerse = null;
 
-    function commentaryCacheKey(v, commentator) {
-      return `${v.book}|${v.chapterNum}|${v.verseNum}|${commentator}`;
+    // הטווח שהשיעור הזה מכסה בפועל באותו פרק - לא בהכרח הפרק המלא בספריא, אבל מספיק לכל מה
+    // שהמשתמש יכול לנווט אליו בתוך השיעור
+    function chapterVerseRange(v) {
+      const nums = uvVerses.filter(x => x.book === v.book && x.chapterNum === v.chapterNum).map(x => x.verseNum);
+      return { minVerse: Math.min(...nums), maxVerse: Math.max(...nums) };
+    }
+
+    function fetchCommentaryChapter(v, commentator) {
+      const key = `${v.book}|${v.chapterNum}|${commentator}`;
+      if (commentaryChapterCache.has(key)) return commentaryChapterCache.get(key);
+      const { minVerse, maxVerse } = chapterVerseRange(v);
+      const promise = fetch(`/sefaria/commentary?book=${encodeURIComponent(v.book)}&chapter=${v.chapterNum}&minVerse=${minVerse}&maxVerse=${maxVerse}&commentator=${encodeURIComponent(commentator)}`)
+        .then(r => r.ok ? r.json() : {})
+        .catch(() => ({}));
+      commentaryChapterCache.set(key, promise);
+      promise.then(data => resolvedCommentaryChapters.set(key, data));
+      return promise;
     }
 
     // רשימת הפרשנים נשלפת רק בלחיצה על כפתור הבחירה עצמו (לא בכל פתיחת מגירה/גלילה לפסוק)
-    async function fetchCommentatorsList(v) {
-      const key = `${v.book}|${v.chapterNum}|${v.verseNum}`;
-      if (commentatorsCache.has(key)) return commentatorsCache.get(key);
-      let result;
-      try {
-        const res = await fetch(`/sefaria/commentators?book=${encodeURIComponent(v.book)}&chapter=${v.chapterNum}&verse=${v.verseNum}`);
-        result = res.ok ? await res.json() : [];
-      } catch (e) {
-        result = [];
-      }
-      result.forEach(c => commentatorLabels.set(c.prefix, c.label));
-      commentatorsCache.set(key, result);
-      return result;
+    function fetchCommentatorsChapter(v) {
+      const key = `${v.book}|${v.chapterNum}`;
+      if (commentatorsChapterCache.has(key)) return commentatorsChapterCache.get(key);
+      const { minVerse, maxVerse } = chapterVerseRange(v);
+      const promise = fetch(`/sefaria/commentators?book=${encodeURIComponent(v.book)}&chapter=${v.chapterNum}&minVerse=${minVerse}&maxVerse=${maxVerse}`)
+        .then(r => r.ok ? r.json() : {})
+        .catch(() => ({}));
+      commentatorsChapterCache.set(key, promise);
+      promise.then(data => {
+        Object.values(data).forEach(list => list.forEach(c => commentatorLabels.set(c.prefix, c.label)));
+        resolvedCommentatorsChapters.set(key, data);
+      });
+      return promise;
     }
 
-    async function fetchCommentary(v, commentator) {
-      const key = commentaryCacheKey(v, commentator);
-      if (commentaryCache.has(key)) return commentaryCache.get(key);
-      let result;
-      try {
-        const res = await fetch(`/sefaria/commentary?book=${encodeURIComponent(v.book)}&chapter=${v.chapterNum}&verse=${v.verseNum}&commentator=${encodeURIComponent(commentator)}`);
-        result = res.ok ? await res.json() : { error: true };
-      } catch (e) {
-        result = { error: true };
-      }
-      commentaryCache.set(key, result);
-      return result;
+    function loadCommentaryForDrawer(v, commentator) {
+      fetchCommentaryChapter(v, commentator).then(() => {
+        if (commentaryDrawerVerse === v && commentaryDrawerCommentator === commentator) renderCommentaryDrawer();
+      });
     }
 
     function renderCommentaryDrawer() {
       const v = commentaryDrawerVerse;
       if (!v) return;
+      const expanded = document.getElementById('commentaryDrawer').classList.contains('expanded');
       const refEl = document.getElementById('commentaryDrawerRef');
       const bodyEl = document.getElementById('commentaryDrawerBody');
       const btnEl = document.getElementById('commentaryDrawerCommentatorBtn');
-      refEl.textContent = v.text.length > 50 ? v.text.slice(0, 50) + '…' : v.text;
+      // במצב מורחב (מסך מלא) מציגים את הפסוק המלא, לא תקציר
+      refEl.textContent = (expanded || v.text.length <= 50) ? v.text : v.text.slice(0, 50) + '…';
       btnEl.textContent = `${commentatorLabels.get(commentaryDrawerCommentator) || commentaryDrawerCommentator} ▾`;
-      const data = commentaryCache.get(commentaryCacheKey(v, commentaryDrawerCommentator));
+      const data = resolvedCommentaryChapters.get(`${v.book}|${v.chapterNum}|${commentaryDrawerCommentator}`);
       if (!data) {
         bodyEl.textContent = 'טוען...';
-      } else if (data.error || !data.text) {
-        bodyEl.textContent = 'אין פירוש זמין לפסוק זה מהפרשן הזה';
       } else {
-        bodyEl.textContent = data.text;
+        bodyEl.textContent = data[v.verseNum] || 'אין פירוש זמין לפסוק זה מהפרשן הזה';
       }
     }
 
@@ -1585,22 +1616,62 @@
       document.getElementById('commentaryDrawerCommentatorList').classList.remove('open');
     }
 
-    function showCommentaryDrawer(v) {
+    function setDrawerExpanded(expanded) {
+      document.getElementById('commentaryDrawer').classList.toggle('expanded', expanded);
+      renderCommentaryDrawer();
+    }
+
+    // מעדכן את התוכן בלבד (בלי לעצור ניגון/לפתוח מחדש) - למעברי פסוק בזמן שהמגירה כבר פתוחה
+    // (גם ניווט ידני וגם התקדמות טבעית של הניגון - ראו uvSeekTo ו-updateUserViewPlayback)
+    function updateCommentaryDrawerForVerse(v) {
       commentaryDrawerVerse = v;
+      renderCommentaryDrawer(); // אם כבר יש קאש לפרק/פרשן הזה - מוצג מיד, בלי "טוען..."
+      loadCommentaryForDrawer(v, commentaryDrawerCommentator);
+    }
+
+    function showCommentaryDrawer(v) {
       document.getElementById('srtPlayer').pause();
       document.getElementById('commentaryDrawer').classList.add('open');
       closeCommentaryList();
-      renderCommentaryDrawer();
-      fetchCommentary(v, commentaryDrawerCommentator).then(() => {
-        if (v === commentaryDrawerVerse) renderCommentaryDrawer();
-      });
+      updateCommentaryDrawerForVerse(v);
     }
 
     function hideCommentaryDrawer() {
-      document.getElementById('commentaryDrawer').classList.remove('open');
+      document.getElementById('commentaryDrawer').classList.remove('open', 'expanded');
       closeCommentaryList();
       commentaryDrawerVerse = null;
     }
+
+    // גרירת הידית פותחת/סוגרת מצב מסך-מלא; לחיצה בלי גרירה משמעותית = toggle
+    (function setupCommentaryDrawerDrag() {
+      const handle = document.getElementById('commentaryDrawerHandle');
+      const drawerEl = document.getElementById('commentaryDrawer');
+      let startY = null;
+      let startHeight = null;
+
+      handle.addEventListener('pointerdown', (e) => {
+        startY = e.clientY;
+        startHeight = drawerEl.getBoundingClientRect().height;
+        drawerEl.style.transition = 'none';
+        handle.setPointerCapture(e.pointerId);
+      });
+      handle.addEventListener('pointermove', (e) => {
+        if (startY === null) return;
+        const delta = startY - e.clientY; // גרירה למעלה = חיובי
+        drawerEl.style.height = `${Math.min(window.innerHeight, Math.max(120, startHeight + delta))}px`;
+      });
+      function endDrag() {
+        if (startY === null) return;
+        const finalHeight = drawerEl.getBoundingClientRect().height;
+        const dragged = Math.abs(finalHeight - startHeight) > 5;
+        drawerEl.style.transition = '';
+        drawerEl.style.height = '';
+        startY = null;
+        setDrawerExpanded(dragged ? finalHeight > window.innerHeight * 0.75 : !drawerEl.classList.contains('expanded'));
+      }
+      handle.addEventListener('pointerup', endDrag);
+      handle.addEventListener('pointercancel', endDrag);
+    })();
 
     document.getElementById('commentaryDrawerCommentatorBtn').addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -1609,13 +1680,22 @@
       const v = commentaryDrawerVerse;
       if (!v) return;
       listEl.classList.add('open');
+      const key = `${v.book}|${v.chapterNum}`;
+      const cached = resolvedCommentatorsChapters.get(key);
+      if (cached) {
+        renderCommentaryOptions(cached[v.verseNum] || []);
+        return;
+      }
       listEl.innerHTML = '<div class="commentary-option-loading">טוען...</div>';
-      const commentators = await fetchCommentatorsList(v);
+      const data = await fetchCommentatorsChapter(v);
       if (v !== commentaryDrawerVerse) return; // המשתמש כבר עבר לפסוק אחר בזמן ההמתנה לתשובה
-      listEl.innerHTML = commentators.map(c =>
+      renderCommentaryOptions(data[v.verseNum] || []);
+    });
+    function renderCommentaryOptions(list) {
+      document.getElementById('commentaryDrawerCommentatorList').innerHTML = list.map(c =>
         `<button class="commentary-option${c.prefix === commentaryDrawerCommentator ? ' active' : ''}" data-commentator="${escHtml(c.prefix)}">${escHtml(c.label)}</button>`
       ).join('');
-    });
+    }
     // הרשימה נבנית מחדש בכל פתיחה - מאזין יחיד ב-delegation
     document.getElementById('commentaryDrawerCommentatorList').addEventListener('click', (e) => {
       const opt = e.target.closest('.commentary-option');
@@ -1628,9 +1708,7 @@
       sessionStorage.setItem('commentaryCommentator', prefix);
       renderCommentaryDrawer();
       const v = commentaryDrawerVerse;
-      if (v) fetchCommentary(v, prefix).then(() => {
-        if (v === commentaryDrawerVerse) renderCommentaryDrawer();
-      });
+      if (v) loadCommentaryForDrawer(v, prefix);
     });
     // סגירת רשימת הפרשנים בלחיצה מחוץ לה
     document.addEventListener('click', (e) => {
@@ -1649,7 +1727,7 @@
       if (idx === uvCurrentIdx) {
         showCommentaryDrawer(v); // כבר הפסוק הפעיל - uvSeekTo לא ירוץ, פותחים/מרעננים ידנית
       } else {
-        uvSeekTo(idx); // אם המגירה כבר פתוחה, uvSeekTo קורא ל-showCommentaryDrawer בעצמו (ראו שם) - בלי כפילות
+        uvSeekTo(idx); // אם המגירה כבר פתוחה, uvSeekTo מעדכן אותה בעצמו (updateCommentaryDrawerForVerse) - בלי כפילות
         if (!commentaryDrawerVerse) showCommentaryDrawer(v);
       }
     });
@@ -1715,6 +1793,8 @@
       if (idx !== uvCurrentIdx) {
         uvCurrentIdx = idx;
         renderUvActive();
+        // המגירה פתוחה והניגון ממשיך (לא רק ניווט ידני) - הפרשנות עוברת לפסוק הבא בלי לעצור את הניגון
+        if (commentaryDrawerVerse && uvVerses[idx]) updateCommentaryDrawerForVerse(uvVerses[idx]);
       }
       uvUpdateStickyChapter(idx);
     }
