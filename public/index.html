@@ -1566,28 +1566,20 @@
       document.getElementById('srtPlayer').play().catch(() => {});
     }, { once: true, capture: true });
 
+    // גורם לפסוק idx להיות הנוכחי - בלי לגעת במצב הניגון בכלל (אם ניגן - ממשיך, אם עצר - נשאר עצור).
+    // רק לחיצה על הפסוק הנוכחי עצמו עושה toggle לניגון (ראו מאזיני הקליק למטה) - לא seek לפסוק אחר.
     function uvSeekTo(idx) {
       const v = uvVerses[idx];
       if (!v) return;
       const audio = document.getElementById('srtPlayer');
       // seek לפני play ראשון משאיר את ה-audio "תקוע" לצמיתות ב-iOS (seek לא עובד אפילו אחרי
-      // שמנגנים מאוחר יותר) - מעירים את הנגן פעם אחת עם play/pause מיידי לפני ה-seek הראשון.
-      if (!audioEverPlayed) audio.play().catch(() => {});
-      audio.pause();
+      // שמנגנים מאוחר יותר) - מעירים את הנגן פעם אחת עם play/pause מיידי לפני ה-seek הראשון בלבד.
+      if (!audioEverPlayed) { audio.play().catch(() => {}); audio.pause(); }
       audio.currentTime = v.sec;
       uvCurrentIdx = idx;
       renderUvActive();
       uvUpdateStickyChapter(idx);
       updateCommentaryDrawerForVerse(v); // המגירה מוצגת תמיד - תמיד לעדכן לפסוק הנוכחי
-    }
-
-    // seek רגיל, ובנוסף: אם הניגון היה בהשהיה לפני הלחיצה - חוזר לנגן אחרי ה-seek
-    // (אם היה מנגן - נשאר בהשהיה, כמו שה-seek הרגיל כבר עושה)
-    function uvSeekToWithResume(idx) {
-      const audio = document.getElementById('srtPlayer');
-      const wasPaused = audio.paused;
-      uvSeekTo(idx);
-      if (wasPaused) audio.play().catch(() => {});
     }
 
     // מטמון בקליינט - לכל הפרק בבת אחת (לא פסוק-פסוק), כדי שגלילה בין פסוקים באותו פרק לא תיצור
@@ -1757,14 +1749,14 @@
       const audio = document.getElementById('srtPlayer');
       if (audio.paused) audio.play().catch(() => {}); else audio.pause();
     });
-    // פסוק קודם/בא בתוך המגירה - לחיצה מנווטת אליו (seek), עם המשך ניגון אם היה בהשהיה
+    // פסוק קודם/בא בתוך המגירה - לחיצה גורמת לו להיות הנוכחי, בלי לגעת במצב הניגון
     document.getElementById('commentaryDrawerPrevVerse').addEventListener('click', () => {
       const idx = uvVerses.indexOf(commentaryDrawerVerse);
-      if (idx > 0) uvSeekToWithResume(idx - 1);
+      if (idx > 0) uvSeekTo(idx - 1);
     });
     document.getElementById('commentaryDrawerNextVerse').addEventListener('click', () => {
       const idx = uvVerses.indexOf(commentaryDrawerVerse);
-      if (idx !== -1 && idx < uvVerses.length - 1) uvSeekToWithResume(idx + 1);
+      if (idx !== -1 && idx < uvVerses.length - 1) uvSeekTo(idx + 1);
     });
 
     document.getElementById('uvTrack').addEventListener('click', (e) => {
@@ -1773,9 +1765,13 @@
       if (linkerMode) return; // הפסוק הוא לינק אמיתי לספריא - נותנים לניווט הדפדפן הרגיל לקרות
       const idx = parseInt(row.dataset.idx, 10);
       if (Number.isNaN(idx)) return;
-      // לחיצה על פסוק תמיד מבצעת seek (המגירה מתעדכנת מעצמה, ראו uvSeekTo) - אם הניגון היה
-      // בהשהיה הוא חוזר לנגן אחרי ה-seek; אם ניגן, הוא נשאר בהשהיה (ה-seek עוצר אותו כרגיל)
-      uvSeekToWithResume(idx);
+      if (idx === uvCurrentIdx) {
+        // לחיצה על הפסוק הנוכחי (לא פסוק אחר) - רק toggle לניגון, בלי seek
+        const audio = document.getElementById('srtPlayer');
+        if (audio.paused) audio.play().catch(() => {}); else audio.pause();
+      } else {
+        uvSeekTo(idx); // גורם לפסוק הזה להיות הנוכחי - לא נוגע במצב הניגון בכלל
+      }
     });
 
     function uvNavigate(direction) {
