@@ -203,7 +203,7 @@
     #userView {
       display: none;
       position: fixed;
-      top: 60px; left: 0; right: 0; bottom: 0;
+      top: 0; left: 0; right: 0; bottom: 0;
       z-index: 90;
       background: #f0f2f5;
       flex-direction: column;
@@ -467,11 +467,28 @@
       cursor: pointer;
       padding: 0.25rem 0.5rem;
     }
+    #commentaryDrawerReopenBtn {
+      position: fixed;
+      right: 1.25rem;
+      bottom: 0.4rem;
+      z-index: 500;
+      border: none;
+      background: #fff;
+      color: #64748b;
+      border-radius: 999px;
+      width: 2.3rem;
+      height: 2.3rem;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
     #commentaryDrawerRef { flex-shrink: 0; font-weight: 600; color: #64748b; margin: 0.6rem 0 0.4rem; font-size: 0.95rem; cursor: pointer; }
     #commentaryDrawerBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; font-size: 1.05rem; line-height: 1.6; color: #1e293b; }
     #userViewTitle {
       flex-shrink: 0;
-      height: 6.5rem;
+      height: 4.5rem;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -482,12 +499,50 @@
       color: #334155;
       text-align: center;
     }
+    #userViewMiddle {
+      display: flex;
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+      max-width: calc(720px + 2.4rem);
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+    #uvSeekBar {
+      flex: 0 0 2.4rem;
+      position: relative;
+      touch-action: none;
+      cursor: grab;
+    }
+    #uvSeekBarTrack {
+      position: absolute;
+      top: 0.4rem; bottom: 0.4rem; left: 50%;
+      width: 4px; margin-left: -2px;
+      background: rgba(0,0,0,0.12);
+      border-radius: 2px;
+    }
+    #uvSeekBarFill {
+      position: absolute;
+      top: 0.4rem; left: 50%;
+      width: 4px; margin-left: -2px;
+      height: 0%;
+      background: #0891b2;
+      border-radius: 2px;
+    }
+    #uvSeekBarHandle {
+      position: absolute;
+      top: 0.4rem; left: 50%;
+      width: 18px; height: 18px;
+      margin-left: -9px; margin-top: -9px;
+      border-radius: 50%;
+      background: #0891b2;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
     #userViewVerses {
       flex: 1 1 auto;
       position: relative;
       overflow: hidden;
-      max-width: 720px; width: 100%;
-      margin: 0 auto; box-sizing: border-box;
+      box-sizing: border-box;
     }
     #uvTrack {
       position: absolute;
@@ -578,6 +633,25 @@
       background: rgba(0,0,0,0.08);
       overflow: hidden;
       display: none;
+    }
+    .uv-meter.uv-meter-top {
+      bottom: auto;
+      top: 0;
+    }
+    .uv-play-state-icon {
+      position: absolute;
+      right: 0;
+      bottom: 7px;
+      font-size: 0.7rem;
+      line-height: 1;
+      color: #f5a623;
+      display: none;
+      pointer-events: none;
+      user-select: none;
+    }
+    .uv-play-state-icon.uv-icon-top {
+      bottom: auto;
+      top: -14px;
     }
     .uv-meter-fill {
       width: 100%;
@@ -686,8 +760,15 @@
 
   <div id="userView">
     <div id="userViewTitle"></div>
-    <div id="userViewVerses">
-      <div id="uvTrack"></div>
+    <div id="userViewMiddle">
+      <div id="uvSeekBar">
+        <div id="uvSeekBarTrack"></div>
+        <div id="uvSeekBarFill"></div>
+        <div id="uvSeekBarHandle"></div>
+      </div>
+      <div id="userViewVerses">
+        <div id="uvTrack"></div>
+      </div>
     </div>
     <div id="userViewCaption" style="display:none;"></div>
   </div>
@@ -709,6 +790,7 @@
     <div id="commentaryDrawerNextVerse" class="commentary-nav-verse"></div>
     <div id="commentaryDrawerBody"></div>
   </div>
+  <button id="commentaryDrawerReopenBtn" onclick="showCommentaryDrawerBack()" aria-label="פתח מגירת פירוש" style="display:none;">▲</button>
 
   <script>
     // זמני: שימוש ב-localStorage מבוטל לגמרי באפליקציה (בכוונה, לפי בקשה מפורשת) - להחזיר בהמשך.
@@ -769,17 +851,33 @@
     function applyMeterVisibility() {
       if (uvMeterRowIdx !== null && uvRowEls[uvMeterRowIdx]) {
         const old = uvRowEls[uvMeterRowIdx].querySelector('.uv-meter');
-        if (old) old.style.display = 'none';
+        if (old) { old.style.display = 'none'; old.classList.remove('uv-meter-top'); }
+        const oldIcon = uvRowEls[uvMeterRowIdx].querySelector('.uv-play-state-icon');
+        if (oldIcon) oldIcon.style.display = 'none';
       }
       uvMeterRowIdx = null;
       if (!showMeter || uvCurrentIdx === null) return;
-      const targetIdx = meterPosition === 'next' ? uvCurrentIdx + 1 : uvCurrentIdx;
+      // לפני שההשמעה מגיעה לפסוק הראשון (uvCurrentIdx === -1) אין שורת "נוכחי"/"הבא" רגילה להיצמד אליה -
+      // מציגים את הפס מעל הפסוק הראשון עצמו (שורה 0) עד שהוא מתחיל
+      const beforeFirstVerse = uvCurrentIdx < 0;
+      const targetIdx = beforeFirstVerse ? 0 : (meterPosition === 'next' ? uvCurrentIdx + 1 : uvCurrentIdx);
       const row = uvRowEls[targetIdx];
       if (!row) return;
       const meterEl = row.querySelector('.uv-meter');
       if (!meterEl) return;
+      meterEl.classList.toggle('uv-meter-top', beforeFirstVerse);
       meterEl.style.display = 'block';
       uvMeterRowIdx = targetIdx;
+      uvUpdatePlayStateIcon();
+    }
+
+    function uvUpdatePlayStateIcon() {
+      if (uvMeterRowIdx === null || !uvRowEls[uvMeterRowIdx]) return;
+      const icon = uvRowEls[uvMeterRowIdx].querySelector('.uv-play-state-icon');
+      if (!icon) return;
+      const audio = document.getElementById('srtPlayer');
+      icon.textContent = audio.paused ? '⏸' : '▶';
+      icon.style.display = 'block';
     }
 
     function setPrevVersesCount(n) {
@@ -1290,6 +1388,7 @@
       userViewActive = !userViewActive;
       document.querySelector('.card').style.display = userViewActive ? 'none' : '';
       document.getElementById('userView').style.display = userViewActive ? 'flex' : 'none';
+      document.getElementById('stickyPlayer').style.display = userViewActive ? 'none' : 'block';
       document.getElementById('commentaryDrawer').classList.toggle('open', userViewActive);
       const fab = document.getElementById('viewToggleFab');
       fab.textContent = userViewActive ? '🛠️' : '📖';
@@ -1309,6 +1408,7 @@
         stopUvMeterLoop();
         stopUvPauseWatchLoop();
         stopUvScrollLoop();
+        document.getElementById('commentaryDrawerReopenBtn').style.display = 'none';
       }
     }
 
@@ -1374,6 +1474,7 @@
           </span>
           <span class="uv-row-text">${escHtml(v.text)}</span>
           <span class="uv-row-spacer" aria-hidden="true"></span>
+          <span class="uv-play-state-icon" aria-hidden="true"></span>
           <div class="uv-meter"><div class="uv-meter-fill"></div></div>
         </${rowTag}>`).join('');
       uvRowEls = [...track.querySelectorAll('.uv-row')];
@@ -1384,10 +1485,14 @@
         uvCurrentChapterNum = null;
         uvUpdateStickyChapter(uvCurrentIdx);
       }
-      // מגירת הפירוש מוצגת תמיד (לא נפתחת/נסגרת) - מאותחלת כאן לפסוק הראשון, גובה קטן כברירת מחדל
+      // מגירת הפירוש מאותחלת כאן לפסוק הראשון, בגודל ובמצב פתוח/סגור שנשמרו מה-session הקודם
       if (uvVerses.length) {
-        setDrawerSize('low');
+        setDrawerSize(commentaryDrawerSize);
         updateCommentaryDrawerForVerse(uvVerses[0]);
+        if (commentaryDrawerClosed) {
+          document.getElementById('commentaryDrawer').classList.remove('open');
+          document.getElementById('commentaryDrawerReopenBtn').style.display = 'flex';
+        }
       }
     }
 
@@ -1558,7 +1663,26 @@
     }
 
     let audioEverPlayed = false;
-    document.getElementById('srtPlayer').addEventListener('play', () => { audioEverPlayed = true; });
+    document.getElementById('srtPlayer').addEventListener('play', () => { audioEverPlayed = true; uvUpdatePlayStateIcon(); requestWakeLock(); });
+    document.getElementById('srtPlayer').addEventListener('pause', () => { uvUpdatePlayStateIcon(); releaseWakeLock(); });
+
+    // Wake Lock: מונע מהמסך להיכבות/להינעל בזמן ניגון (בלי נגיעה במסך). ה-wake lock משתחרר
+    // אוטומטית ע"י הדפדפן כשהעמוד עובר לרקע (טאב אחר/מסך ננעל) - צריך לבקש אותו מחדש
+    // כשהעמוד חוזר להיות גלוי, אם הניגון עדיין פעיל.
+    let wakeLock = null;
+    async function requestWakeLock() {
+      if (!('wakeLock' in navigator)) return;
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+      } catch (e) { /* נדחה (למשל דף לא גלוי) - לא קריטי */ }
+    }
+    function releaseWakeLock() {
+      if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+    }
+    document.addEventListener('visibilitychange', () => {
+      const audio = document.getElementById('srtPlayer');
+      if (document.visibilityState === 'visible' && !audio.paused) requestWakeLock();
+    });
     // רשת ביטחון: אם הנגיעה הראשונה בכלל היא גרירת פס ההתקדמות המקורי (לא לחיצה על פסוק),
     // uvSeekTo לא נקרא כלל - מעירים את הנגן גם על כל אינטראקציה ראשונה בעמוד.
     document.addEventListener('pointerdown', () => {
@@ -1582,6 +1706,48 @@
       uvUpdateStickyChapter(idx);
       updateCommentaryDrawerForVerse(v); // המגירה מוצגת תמיד - תמיד לעדכן לפסוק הנוכחי
     }
+
+    // פס גרירה אנכי מימין לפסוקים - מיפוי ישיר וקבוע של מיקום ב-Y לאחוז מתוך משך האודיו
+    // (בלי תלות במדידת גובה שורות/קאש, בניגוד ל"גרירה חיה" של הקרוסלה שנוסתה ונדחתה בעבר).
+    function uvSeekBarRender(frac) {
+      const fill = document.getElementById('uvSeekBarFill');
+      const handle = document.getElementById('uvSeekBarHandle');
+      if (fill) fill.style.height = `${frac * 100}%`;
+      if (handle) handle.style.top = `${frac * 100}%`;
+    }
+
+    function uvSeekBarFractionFromEvent(e) {
+      const rect = document.getElementById('uvSeekBar').getBoundingClientRect();
+      return Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+    }
+
+    function uvSeekBarApply(frac) {
+      const audio = document.getElementById('srtPlayer');
+      if (!isFinite(audio.duration) || audio.duration <= 0) return;
+      // אותו idiom כמו uvSeekTo - seek לפני play ראשון תוקע לצמיתות ב-iOS
+      if (!audioEverPlayed) { audio.play().catch(() => {}); audio.pause(); }
+      audio.currentTime = frac * audio.duration;
+      uvSeekBarRender(frac);
+    }
+
+    let uvSeekBarDragging = false;
+    (function setupUvSeekBar() {
+      const bar = document.getElementById('uvSeekBar');
+      bar.addEventListener('pointerdown', (e) => {
+        uvSeekBarDragging = true;
+        bar.setPointerCapture(e.pointerId);
+        uvSeekBarApply(uvSeekBarFractionFromEvent(e));
+      });
+      bar.addEventListener('pointermove', (e) => {
+        if (!uvSeekBarDragging) return;
+        uvSeekBarApply(uvSeekBarFractionFromEvent(e));
+      });
+      ['pointerup', 'pointercancel'].forEach(evt =>
+        bar.addEventListener(evt, () => { uvSeekBarDragging = false; }));
+      // מונע מהמחוות לבעבע ל-listeners של swipe-ניווט/wheel שמאזינים על #userView כולו
+      ['touchstart', 'touchmove', 'touchend', 'wheel'].forEach(evt =>
+        bar.addEventListener(evt, (e) => e.stopPropagation(), { passive: evt !== 'wheel' }));
+    })();
 
     // מטמון בקליינט - לכל הפרק בבת אחת (לא פסוק-פסוק), כדי שגלילה בין פסוקים באותו פרק לא תיצור
     // בקשות נוספות. שומרים גם את ה-Promise (למניעת בקשות כפולות בזמן טעינה) וגם את הערך שנפתר
@@ -1675,10 +1841,15 @@
 
     const DRAWER_SIZES = ['low', 'normal', 'large']; // 20vh / 40vh / 80vh
     const DRAWER_SIZE_ICONS = { low: '▁', normal: '▄', large: '█' };
-    let commentaryDrawerSize = 'low';
+    // גודל ומצב פתוח/סגור נשמרים ב-sessionStorage (לא localStorage - כרגע מבוטל לגמרי, ראו למעלה)
+    // ונשרדים ריפרש של הטאב, כמו commentaryDrawerCommentator הקיים.
+    let commentaryDrawerSize = DRAWER_SIZES.includes(sessionStorage.getItem('commentaryDrawerSize'))
+      ? sessionStorage.getItem('commentaryDrawerSize') : 'low';
+    let commentaryDrawerClosed = sessionStorage.getItem('commentaryDrawerClosed') === '1';
 
     function setDrawerSize(size) {
       commentaryDrawerSize = size;
+      sessionStorage.setItem('commentaryDrawerSize', size);
       const drawerEl = document.getElementById('commentaryDrawer');
       DRAWER_SIZES.forEach(s => drawerEl.classList.toggle(`drawer-${s}`, s === size));
       document.getElementById('commentaryDrawerSizeBtn').textContent = DRAWER_SIZE_ICONS[size];
@@ -1697,10 +1868,21 @@
       loadCommentaryForDrawer(v, commentaryDrawerCommentator);
     }
 
-    // כפתור ה-✕ "ממזער" בחזרה לגודל הקטן ביותר, במקום לסגור לגמרי (המגירה תמיד מוצגת)
+    // כפתור ה-✕ מעלים את המגירה לגמרי (גודל האחרון נשאר שמור), ומשאיר רק חץ קטן לפתיחה חזרה
     function hideCommentaryDrawer() {
       closeCommentaryList();
-      setDrawerSize('low');
+      commentaryDrawerClosed = true;
+      sessionStorage.setItem('commentaryDrawerClosed', '1');
+      document.getElementById('commentaryDrawer').classList.remove('open');
+      document.getElementById('commentaryDrawerReopenBtn').style.display = 'flex';
+    }
+
+    // החץ הקטן מחזיר את המגירה למצב (גודל) האחרון שהיא הייתה בו לפני הסגירה
+    function showCommentaryDrawerBack() {
+      commentaryDrawerClosed = false;
+      sessionStorage.setItem('commentaryDrawerClosed', '0');
+      document.getElementById('commentaryDrawerReopenBtn').style.display = 'none';
+      document.getElementById('commentaryDrawer').classList.add('open');
     }
 
     document.getElementById('commentaryDrawerCommentatorBtn').addEventListener('click', async (e) => {
@@ -1820,6 +2002,7 @@
       if (!userViewActive || noRafLoops) return;
       const audio = document.getElementById('srtPlayer');
       const t = audio.currentTime;
+      if (isFinite(audio.duration) && audio.duration > 0 && !uvSeekBarDragging) uvSeekBarRender(t / audio.duration);
 
       const captionEl = document.getElementById('userViewCaption');
       const seg = srtSegments.find(s => t >= s.start && t < s.end);
