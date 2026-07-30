@@ -1566,15 +1566,16 @@
       document.getElementById('srtPlayer').play().catch(() => {});
     }, { once: true, capture: true });
 
-    // גורם לפסוק idx להיות הנוכחי - בלי לגעת במצב הניגון בכלל (אם ניגן - ממשיך, אם עצר - נשאר עצור).
+    // גורם לפסוק idx להיות הנוכחי, ועוצר את הניגון אם היה מנגן (לא מפעיל אם היה עצור).
     // רק לחיצה על הפסוק הנוכחי עצמו עושה toggle לניגון (ראו מאזיני הקליק למטה) - לא seek לפסוק אחר.
     function uvSeekTo(idx) {
       const v = uvVerses[idx];
       if (!v) return;
       const audio = document.getElementById('srtPlayer');
       // seek לפני play ראשון משאיר את ה-audio "תקוע" לצמיתות ב-iOS (seek לא עובד אפילו אחרי
-      // שמנגנים מאוחר יותר) - מעירים את הנגן פעם אחת עם play/pause מיידי לפני ה-seek הראשון בלבד.
-      if (!audioEverPlayed) { audio.play().catch(() => {}); audio.pause(); }
+      // שמנגנים מאוחר יותר) - מעירים את הנגן פעם אחת עם play/pause מיידי לפני ה-seek הראשון.
+      if (!audioEverPlayed) audio.play().catch(() => {});
+      audio.pause();
       audio.currentTime = v.sec;
       uvCurrentIdx = idx;
       renderUvActive();
