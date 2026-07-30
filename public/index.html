@@ -373,7 +373,9 @@
       pointer-events: none;
     }
     #commentaryDrawer.open { transform: translateY(0); pointer-events: auto; }
-    #commentaryDrawer.open.expanded { height: 80vh; }
+    #commentaryDrawer.open.drawer-low { height: 20vh; }
+    #commentaryDrawer.open.drawer-normal { height: 40vh; }
+    #commentaryDrawer.open.drawer-large { height: 80vh; }
     #commentaryDrawerHeader {
       display: flex;
       align-items: center;
@@ -381,15 +383,43 @@
       flex-shrink: 0;
     }
     #commentaryDrawerActions { display: flex; align-items: center; gap: 0.1rem; }
-    #commentaryDrawerExpandBtn {
+    #commentaryDrawerSizeBtn {
       border: none;
       background: none;
       font-size: 1.15rem;
       color: #64748b;
       cursor: pointer;
       padding: 0.25rem 0.5rem;
+      line-height: 1;
     }
-    #commentaryDrawerExpandBtn.active { color: #1e293b; }
+    /* מוצג רק במצב הגדול ביותר - פסוק קודם/בא (לחיצים) ומד התקדמות לפסוק הנוכחי, כמו בקרוסלה הראשית */
+    .commentary-nav-verse {
+      display: none;
+      flex-shrink: 0;
+      padding: 0.3rem 0;
+      font-size: 0.9rem;
+      color: #94a3b8;
+      cursor: pointer;
+    }
+    .commentary-nav-verse:hover { color: #64748b; }
+    #commentaryDrawer.drawer-large .commentary-nav-verse { display: block; }
+    #commentaryDrawerMeter {
+      display: none;
+      flex-shrink: 0;
+      height: 3px;
+      border-radius: 2px;
+      background: rgba(0,0,0,0.08);
+      overflow: hidden;
+      margin: 0.3rem 0 0.6rem;
+    }
+    #commentaryDrawer.drawer-large #commentaryDrawerMeter { display: block; }
+    #commentaryDrawerMeterFill {
+      width: 100%;
+      height: 100%;
+      background: #f5a623;
+      transform-origin: right center;
+      transform: scaleX(0);
+    }
     #commentaryDrawerSelector { position: relative; }
     .commentary-tab {
       padding: 0.35rem 0.9rem;
@@ -437,7 +467,7 @@
       cursor: pointer;
       padding: 0.25rem 0.5rem;
     }
-    #commentaryDrawerRef { flex-shrink: 0; font-weight: 600; color: #64748b; margin: 0.6rem 0 0.4rem; font-size: 0.95rem; }
+    #commentaryDrawerRef { flex-shrink: 0; font-weight: 600; color: #64748b; margin: 0.6rem 0 0.4rem; font-size: 0.95rem; cursor: pointer; }
     #commentaryDrawerBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; font-size: 1.05rem; line-height: 1.6; color: #1e293b; }
     #userViewTitle {
       flex-shrink: 0;
@@ -669,11 +699,14 @@
         <div id="commentaryDrawerCommentatorList"></div>
       </div>
       <div id="commentaryDrawerActions">
-        <button id="commentaryDrawerExpandBtn" onclick="toggleCommentaryDrawerExpanded()" aria-label="הגדלה">⛶</button>
+        <button id="commentaryDrawerSizeBtn" onclick="cycleCommentaryDrawerSize()" aria-label="גודל המגירה">▄</button>
         <button id="commentaryDrawerClose" onclick="hideCommentaryDrawer()" aria-label="סגור">✕</button>
       </div>
     </div>
+    <div id="commentaryDrawerPrevVerse" class="commentary-nav-verse"></div>
     <div id="commentaryDrawerRef"></div>
+    <div id="commentaryDrawerMeter"><div id="commentaryDrawerMeterFill"></div></div>
+    <div id="commentaryDrawerNextVerse" class="commentary-nav-verse"></div>
     <div id="commentaryDrawerBody"></div>
   </div>
 
@@ -1257,6 +1290,7 @@
       userViewActive = !userViewActive;
       document.querySelector('.card').style.display = userViewActive ? 'none' : '';
       document.getElementById('userView').style.display = userViewActive ? 'flex' : 'none';
+      document.getElementById('commentaryDrawer').classList.toggle('open', userViewActive);
       const fab = document.getElementById('viewToggleFab');
       fab.textContent = userViewActive ? '🛠️' : '📖';
       fab.title = userViewActive ? 'חזרה לתצוגת ניפוי' : 'תצוגת משתמש';
@@ -1349,6 +1383,11 @@
       if (sequenceMode) {
         uvCurrentChapterNum = null;
         uvUpdateStickyChapter(uvCurrentIdx);
+      }
+      // מגירת הפירוש מוצגת תמיד (לא נפתחת/נסגרת) - מאותחלת כאן לפסוק הראשון, גובה קטן כברירת מחדל
+      if (uvVerses.length) {
+        setDrawerSize('low');
+        updateCommentaryDrawerForVerse(uvVerses[0]);
       }
     }
 
@@ -1464,19 +1503,21 @@
 
     let uvMeterRaf = null;
     function updateUvMeter() {
-      if (uvMeterRowIdx === null) return;
-      const row = uvRowEls[uvMeterRowIdx];
-      if (!row) return;
-      const fill = row.querySelector('.uv-meter-fill');
       const audio = document.getElementById('srtPlayer');
       // אין פסוק "נוכחי" לפני שהגיעו לפסוק הראשון (uvCurrentIdx === -1) - מודדים מתחילת ההשמעה עד הפסוק הראשון
       const cur = (uvCurrentIdx !== null && uvCurrentIdx >= 0) ? uvVerses[uvCurrentIdx] : null;
       const startSec = cur ? cur.sec : 0;
       const next = cur ? uvVerses[uvCurrentIdx + 1] : uvVerses[0];
       const endSec = next ? next.sec : (isFinite(audio.duration) ? audio.duration : null);
-      if (endSec === null || endSec <= startSec) { fill.style.transform = 'scaleX(0)'; return; }
-      const progress = Math.min(1, Math.max(0, (audio.currentTime - startSec) / (endSec - startSec)));
-      fill.style.transform = `scaleX(${progress})`;
+      const progress = (endSec === null || endSec <= startSec) ? 0
+        : Math.min(1, Math.max(0, (audio.currentTime - startSec) / (endSec - startSec)));
+      if (uvMeterRowIdx !== null && uvRowEls[uvMeterRowIdx]) {
+        const fill = uvRowEls[uvMeterRowIdx].querySelector('.uv-meter-fill');
+        if (fill) fill.style.transform = `scaleX(${progress})`;
+      }
+      // מד ההתקדמות בתוך מגירת הפירוש (מוצג רק במצב הגדול ביותר, אבל מעודכן תמיד - זול)
+      const drawerFill = document.getElementById('commentaryDrawerMeterFill');
+      if (drawerFill) drawerFill.style.transform = `scaleX(${progress})`;
     }
     function startUvMeterLoop() {
       if (uvMeterRaf !== null) return;
@@ -1489,6 +1530,8 @@
         const fill = uvRowEls[uvMeterRowIdx].querySelector('.uv-meter-fill');
         if (fill) fill.style.transform = 'scaleX(0)';
       }
+      const drawerFill = document.getElementById('commentaryDrawerMeterFill');
+      if (drawerFill) drawerFill.style.transform = 'scaleX(0)';
     }
 
     const UV_PAUSE_AFTER_VERSE_START_SEC = 0.3;
@@ -1535,9 +1578,16 @@
       uvCurrentIdx = idx;
       renderUvActive();
       uvUpdateStickyChapter(idx);
-      // גם בניווט גלילה/מקלדת (לא רק לחיצה) - אם המגירה פתוחה, תמיד להציג את הפרשנות של הפסוק הנוכחי
-      // (updateCommentaryDrawerForVerse ולא showCommentaryDrawer - אין צורך לעצור ניגון/לפתוח שוב, כבר טופל למעלה)
-      if (commentaryDrawerVerse) updateCommentaryDrawerForVerse(v);
+      updateCommentaryDrawerForVerse(v); // המגירה מוצגת תמיד - תמיד לעדכן לפסוק הנוכחי
+    }
+
+    // seek רגיל, ובנוסף: אם הניגון היה בהשהיה לפני הלחיצה - חוזר לנגן אחרי ה-seek
+    // (אם היה מנגן - נשאר בהשהיה, כמו שה-seek הרגיל כבר עושה)
+    function uvSeekToWithResume(idx) {
+      const audio = document.getElementById('srtPlayer');
+      const wasPaused = audio.paused;
+      uvSeekTo(idx);
+      if (wasPaused) audio.play().catch(() => {});
     }
 
     // מטמון בקליינט - לכל הפרק בבת אחת (לא פסוק-פסוק), כדי שגלילה בין פסוקים באותו פרק לא תיצור
@@ -1596,16 +1646,28 @@
       });
     }
 
+    function truncatePreview(text) {
+      return text.length > 50 ? text.slice(0, 50) + '…' : text;
+    }
+
     function renderCommentaryDrawer() {
       const v = commentaryDrawerVerse;
       if (!v) return;
-      const expanded = document.getElementById('commentaryDrawer').classList.contains('expanded');
+      const large = commentaryDrawerSize === 'large';
       const refEl = document.getElementById('commentaryDrawerRef');
       const bodyEl = document.getElementById('commentaryDrawerBody');
       const btnEl = document.getElementById('commentaryDrawerCommentatorBtn');
-      // במצב מורחב (80vh) מציגים את הפסוק המלא, לא תקציר
-      refEl.textContent = (expanded || v.text.length <= 50) ? v.text : v.text.slice(0, 50) + '…';
+      // במצב הגדול ביותר מציגים את הפסוק המלא, לא תקציר
+      refEl.textContent = large ? v.text : truncatePreview(v.text);
       btnEl.textContent = `${commentatorLabels.get(commentaryDrawerCommentator) || commentaryDrawerCommentator} ▾`;
+
+      // פסוק קודם/בא (מוצגים רק במצב הגדול, ראו CSS) - מאפשרים ניווט ישיר מתוך המגירה
+      const idx = uvVerses.indexOf(v);
+      const prev = idx > 0 ? uvVerses[idx - 1] : null;
+      const next = (idx !== -1 && idx < uvVerses.length - 1) ? uvVerses[idx + 1] : null;
+      document.getElementById('commentaryDrawerPrevVerse').textContent = prev ? truncatePreview(prev.text) : '';
+      document.getElementById('commentaryDrawerNextVerse').textContent = next ? truncatePreview(next.text) : '';
+
       const data = resolvedCommentaryChapters.get(`${v.book}|${v.chapterNum}|${commentaryDrawerCommentator}`);
       if (!data) {
         bodyEl.textContent = 'טוען...';
@@ -1618,35 +1680,34 @@
       document.getElementById('commentaryDrawerCommentatorList').classList.remove('open');
     }
 
-    function setDrawerExpanded(expanded) {
-      document.getElementById('commentaryDrawer').classList.toggle('expanded', expanded);
-      document.getElementById('commentaryDrawerExpandBtn').classList.toggle('active', expanded);
+    const DRAWER_SIZES = ['low', 'normal', 'large']; // 20vh / 40vh / 80vh
+    const DRAWER_SIZE_ICONS = { low: '▁', normal: '▄', large: '█' };
+    let commentaryDrawerSize = 'low';
+
+    function setDrawerSize(size) {
+      commentaryDrawerSize = size;
+      const drawerEl = document.getElementById('commentaryDrawer');
+      DRAWER_SIZES.forEach(s => drawerEl.classList.toggle(`drawer-${s}`, s === size));
+      document.getElementById('commentaryDrawerSizeBtn').textContent = DRAWER_SIZE_ICONS[size];
       renderCommentaryDrawer();
     }
 
-    function toggleCommentaryDrawerExpanded() {
-      setDrawerExpanded(!document.getElementById('commentaryDrawer').classList.contains('expanded'));
+    function cycleCommentaryDrawerSize() {
+      setDrawerSize(DRAWER_SIZES[(DRAWER_SIZES.indexOf(commentaryDrawerSize) + 1) % DRAWER_SIZES.length]);
     }
 
-    // מעדכן את התוכן בלבד (בלי לעצור ניגון/לפתוח מחדש) - למעברי פסוק בזמן שהמגירה כבר פתוחה
-    // (גם ניווט ידני וגם התקדמות טבעית של הניגון - ראו uvSeekTo ו-updateUserViewPlayback)
+    // מעדכן את התוכן בלבד - לכל מעבר פסוק (לחיצה, גלילה/מקלדת, או התקדמות טבעית של הניגון) -
+    // המגירה מוצגת תמיד כל עוד תצוגת המשתמש פעילה, אין יותר מצב "סגור" נפרד מ"גודל קטן"
     function updateCommentaryDrawerForVerse(v) {
       commentaryDrawerVerse = v;
       renderCommentaryDrawer(); // אם כבר יש קאש לפרק/פרשן הזה - מוצג מיד, בלי "טוען..."
       loadCommentaryForDrawer(v, commentaryDrawerCommentator);
     }
 
-    function showCommentaryDrawer(v) {
-      document.getElementById('srtPlayer').pause();
-      document.getElementById('commentaryDrawer').classList.add('open');
-      closeCommentaryList();
-      updateCommentaryDrawerForVerse(v);
-    }
-
+    // כפתור ה-✕ "ממזער" בחזרה לגודל הקטן ביותר, במקום לסגור לגמרי (המגירה תמיד מוצגת)
     function hideCommentaryDrawer() {
-      document.getElementById('commentaryDrawer').classList.remove('open', 'expanded');
       closeCommentaryList();
-      commentaryDrawerVerse = null;
+      setDrawerSize('low');
     }
 
     document.getElementById('commentaryDrawerCommentatorBtn').addEventListener('click', async (e) => {
@@ -1691,21 +1752,30 @@
       if (!e.target.closest('#commentaryDrawerSelector')) closeCommentaryList();
     });
 
+    // הפסוק הנוכחי המוצג בתוך המגירה - לחיצה עליו רק מחליפה play/pause (בלי seek, הוא כבר הנוכחי)
+    document.getElementById('commentaryDrawerRef').addEventListener('click', () => {
+      const audio = document.getElementById('srtPlayer');
+      if (audio.paused) audio.play().catch(() => {}); else audio.pause();
+    });
+    // פסוק קודם/בא בתוך המגירה - לחיצה מנווטת אליו (seek), עם המשך ניגון אם היה בהשהיה
+    document.getElementById('commentaryDrawerPrevVerse').addEventListener('click', () => {
+      const idx = uvVerses.indexOf(commentaryDrawerVerse);
+      if (idx > 0) uvSeekToWithResume(idx - 1);
+    });
+    document.getElementById('commentaryDrawerNextVerse').addEventListener('click', () => {
+      const idx = uvVerses.indexOf(commentaryDrawerVerse);
+      if (idx !== -1 && idx < uvVerses.length - 1) uvSeekToWithResume(idx + 1);
+    });
+
     document.getElementById('uvTrack').addEventListener('click', (e) => {
       const row = e.target.closest('.uv-row');
       if (!row) return;
       if (linkerMode) return; // הפסוק הוא לינק אמיתי לספריא - נותנים לניווט הדפדפן הרגיל לקרות
       const idx = parseInt(row.dataset.idx, 10);
       if (Number.isNaN(idx)) return;
-      const v = uvVerses[idx];
-      if (!v) return;
-      // לחיצה על כל פסוק פותחת (או מרעננת) את מגירת הפירוש
-      if (idx === uvCurrentIdx) {
-        showCommentaryDrawer(v); // כבר הפסוק הפעיל - uvSeekTo לא ירוץ, פותחים/מרעננים ידנית
-      } else {
-        uvSeekTo(idx); // אם המגירה כבר פתוחה, uvSeekTo מעדכן אותה בעצמו (updateCommentaryDrawerForVerse) - בלי כפילות
-        if (!commentaryDrawerVerse) showCommentaryDrawer(v);
-      }
+      // לחיצה על פסוק תמיד מבצעת seek (המגירה מתעדכנת מעצמה, ראו uvSeekTo) - אם הניגון היה
+      // בהשהיה הוא חוזר לנגן אחרי ה-seek; אם ניגן, הוא נשאר בהשהיה (ה-seek עוצר אותו כרגיל)
+      uvSeekToWithResume(idx);
     });
 
     function uvNavigate(direction) {
@@ -1769,8 +1839,8 @@
       if (idx !== uvCurrentIdx) {
         uvCurrentIdx = idx;
         renderUvActive();
-        // המגירה פתוחה והניגון ממשיך (לא רק ניווט ידני) - הפרשנות עוברת לפסוק הבא בלי לעצור את הניגון
-        if (commentaryDrawerVerse && uvVerses[idx]) updateCommentaryDrawerForVerse(uvVerses[idx]);
+        // המגירה מוצגת תמיד - הניגון הרגיל (לא רק ניווט ידני) מעדכן אותה לפסוק הבא בלי לעצור אותו
+        if (uvVerses[idx]) updateCommentaryDrawerForVerse(uvVerses[idx]);
       }
       uvUpdateStickyChapter(idx);
     }
