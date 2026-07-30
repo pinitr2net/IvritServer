@@ -853,7 +853,7 @@
         const old = uvRowEls[uvMeterRowIdx].querySelector('.uv-meter');
         if (old) { old.style.display = 'none'; old.classList.remove('uv-meter-top'); }
         const oldIcon = uvRowEls[uvMeterRowIdx].querySelector('.uv-play-state-icon');
-        if (oldIcon) oldIcon.style.display = 'none';
+        if (oldIcon) { oldIcon.style.display = 'none'; oldIcon.classList.remove('uv-icon-top'); }
       }
       uvMeterRowIdx = null;
       if (!showMeter || uvCurrentIdx === null) return;
@@ -867,6 +867,8 @@
       if (!meterEl) return;
       meterEl.classList.toggle('uv-meter-top', beforeFirstVerse);
       meterEl.style.display = 'block';
+      const iconEl = row.querySelector('.uv-play-state-icon');
+      if (iconEl) iconEl.classList.toggle('uv-icon-top', beforeFirstVerse);
       uvMeterRowIdx = targetIdx;
       uvUpdatePlayStateIcon();
     }
