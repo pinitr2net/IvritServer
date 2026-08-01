@@ -902,14 +902,15 @@
 
     // מציג את הסמל (▶/⏸) ברקע הפסוק לרגע ואז מעלים אותו - בהשראת נגני וידאו (תגובה חזותית ללחיצה,
     // לא מד מצב קבוע). מתאפס אם לוחצים שוב לפני שהסמל הקודם הספיק להיעלם.
-    let uvFlashIconTimer = null;
+    // הטיימר נשמר על האלמנט עצמו (לא במשתנה גלובלי משותף) - אחרת הבזק על שורה אחת מבטל את טיימר
+    // הדעיכה של שורה אחרת שהובזקה קודם, ומשאיר את הסמל שלה תקוע לצמיתות ברקע.
     function uvFlashPlayIcon(row, symbol) {
       const el = row && row.querySelector('.uv-flash-icon');
       if (!el) return;
       el.textContent = symbol;
       el.classList.add('uv-flash-visible');
-      clearTimeout(uvFlashIconTimer);
-      uvFlashIconTimer = setTimeout(() => el.classList.remove('uv-flash-visible'), 600);
+      clearTimeout(el._uvFlashTimer);
+      el._uvFlashTimer = setTimeout(() => el.classList.remove('uv-flash-visible'), 600);
     }
 
     function uvShowBigPlayBtn(show) {
@@ -1999,7 +2000,8 @@
         if (audio.paused) { audio.play().catch(() => {}); uvFlashPlayIcon(row, '▶'); }
         else { audio.pause(); uvFlashPlayIcon(row, '⏸'); }
       } else {
-        uvSeekTo(idx); // גורם לפסוק הזה להיות הנוכחי - לא נוגע במצב הניגון בכלל
+        uvSeekTo(idx); // גורם לפסוק הזה להיות הנוכחי - תמיד מסתיים בהשהיה (ראו uvSeekTo)
+        uvFlashPlayIcon(row, '⏸');
       }
     });
 
