@@ -682,8 +682,7 @@
       z-index: 2;
       padding: 0;
     }
-    /* מוסתר זמנית - עומדים להחליף בבקרה אחרת ברקע הפסוק הפעיל. לא נמחק, ה-JS עדיין מפעיל את uv-visible. */
-    .uv-big-play-btn.uv-visible { display: none !important; }
+    .uv-big-play-btn.uv-visible { display: flex; }
     .uv-meter-fill {
       width: 100%;
       height: 100%;
@@ -890,9 +889,10 @@
         oldRow.classList.remove('uv-meter-focus-top');
       }
       uvMeterRowIdx = null;
-      // כפתור PLAY גדול מוצג תמיד (לא רק לפני הפסוק הראשון) - בקרת ניגון/השהיה קבועה, בלי תלות
-      // בהגדרת showMeter (זו בקרה, לא מד התקדמות קישוטי)
-      uvShowBigPlayBtn(true);
+      // כפתור PLAY גדול מוצג רק לפני כל אינטראקציה (uvCurrentIdx === null, ממש ברענון טרי) - כרמז
+      // "תלחץ כאן" יחיד; אחרי אינטראקציה ראשונה uvCurrentIdx כבר לא null לצמיתות (עד רענון הבא),
+      // אז הוא נעלם ולא חוזר - האייקון המבזיק בכל שורה מכסה את כל שאר המצבים, כולל -1.
+      uvShowBigPlayBtn(uvCurrentIdx === null);
       const beforeFirstVerse = uvCurrentIdx !== null && uvCurrentIdx < 0;
       if (!showMeter || uvCurrentIdx === null) return;
       const targetIdx = beforeFirstVerse ? 0 : (meterPosition === 'next' ? uvCurrentIdx + 1 : uvCurrentIdx);
@@ -2032,7 +2032,10 @@
       if (linkerMode) return; // הפסוק הוא לינק אמיתי לספריא - נותנים לניווט הדפדפן הרגיל לקרות
       const idx = parseInt(row.dataset.idx, 10);
       if (Number.isNaN(idx)) return;
-      if (idx === uvCurrentIdx) {
+      // לפני שהניגון הגיע לפסוק הראשון (uvCurrentIdx === -1) - פסוק 0 עצמו נחשב "הנוכחי" לצורך
+      // toggle, בדיוק כמו שהמד (uv-meter) כבר מתמקד בו במצב הזה - במקום "לקפוץ" למקום שכבר כמעט שם.
+      const isCurrentForToggle = idx === uvCurrentIdx || (idx === 0 && uvCurrentIdx !== null && uvCurrentIdx < 0);
+      if (isCurrentForToggle) {
         // לחיצה על הפסוק הנוכחי (לא פסוק אחר) - רק toggle לניגון, בלי seek
         const audio = document.getElementById('srtPlayer');
         if (audio.paused) { audio.play().catch(() => {}); uvFlashPlayIcon(row, '▶'); }
