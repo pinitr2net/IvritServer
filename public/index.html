@@ -1740,19 +1740,20 @@
 
     // גורם לפסוק idx להיות הנוכחי, ועוצר את הניגון אם היה מנגן (לא מפעיל אם היה עצור).
     // רק לחיצה על הפסוק הנוכחי עצמו עושה toggle לניגון (ראו מאזיני הקליק למטה) - לא seek לפסוק אחר.
+    // idx === -1 הוא מצב מיוחד "לפני הפסוק הראשון" - קופץ לתחילת האודיו ממש (זמן 0), לא לפסוק כלשהו.
     function uvSeekTo(idx) {
-      const v = uvVerses[idx];
-      if (!v) return;
+      const v = idx >= 0 ? uvVerses[idx] : null;
+      if (idx >= 0 && !v) return;
       const audio = document.getElementById('srtPlayer');
       // seek לפני play ראשון משאיר את ה-audio "תקוע" לצמיתות ב-iOS (seek לא עובד אפילו אחרי
       // שמנגנים מאוחר יותר) - מעירים את הנגן פעם אחת עם play/pause מיידי לפני ה-seek הראשון.
       if (!audioEverPlayed) audio.play().catch(() => {});
       audio.pause();
-      audio.currentTime = v.sec;
+      audio.currentTime = v ? v.sec : 0;
       uvCurrentIdx = idx;
       renderUvActive();
       uvUpdateStickyChapter(idx);
-      updateCommentaryDrawerForVerse(v); // המגירה מוצגת תמיד - תמיד לעדכן לפסוק הנוכחי
+      updateCommentaryDrawerForVerse(v || uvVerses[0]); // המגירה מוצגת תמיד - תמיד לעדכן לפסוק הנוכחי
     }
 
     // פס גרירה אנכי מימין לפסוקים - מיפוי ישיר וקבוע של מיקום ב-Y לאחוז מתוך משך האודיו
@@ -1770,18 +1771,19 @@
     }
 
     // הגרירה נצמדת תמיד לתחילת הפסוק הקרוב ביותר (לא לזמן רציף בתוך פסוק) - גם תוך כדי גרירה.
+    // זמן 0 (לפני הפסוק הראשון, idx=-1) מתחרה כאופציה לגיטימית משלו - אחרת אי אפשר לגרור חזרה לשם.
     function uvSeekBarApply(frac) {
       const audio = document.getElementById('srtPlayer');
       if (!isFinite(audio.duration) || audio.duration <= 0 || !uvVerses.length) return;
       const targetSec = frac * audio.duration;
-      let nearestIdx = 0;
-      let nearestDist = Infinity;
+      let nearestIdx = -1;
+      let nearestDist = Math.abs(targetSec - 0);
       for (let i = 0; i < uvVerses.length; i++) {
         const dist = Math.abs(uvVerses[i].sec - targetSec);
         if (dist < nearestDist) { nearestDist = dist; nearestIdx = i; }
       }
       if (nearestIdx !== uvCurrentIdx) uvSeekTo(nearestIdx);
-      uvSeekBarRender(uvVerses[nearestIdx].sec / audio.duration);
+      uvSeekBarRender((nearestIdx >= 0 ? uvVerses[nearestIdx].sec : 0) / audio.duration);
     }
 
     let uvSeekBarDragging = false;
