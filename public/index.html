@@ -637,6 +637,23 @@
       bottom: auto;
       top: 0;
     }
+    /* אייקון play/pause שמבזיק ברקע הפסוק הפעיל בלחיצה ונעלם - z-index שלילי כדי לשבת מאחורי
+       הטקסט (הרגיל, בזרימה) בלי position/z-index נוספים על שאר תוכן השורה. */
+    .uv-flash-icon {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+      color: rgba(0,0,0,0.16);
+      opacity: 0;
+      pointer-events: none;
+      user-select: none;
+      z-index: -1;
+      transition: opacity 0.25s ease;
+    }
+    .uv-flash-icon.uv-flash-visible { opacity: 1; }
     .uv-play-state-icon {
       position: absolute;
       right: 0;
@@ -665,7 +682,8 @@
       z-index: 2;
       padding: 0;
     }
-    .uv-big-play-btn.uv-visible { display: flex; }
+    /* מוסתר זמנית - עומדים להחליף בבקרה אחרת ברקע הפסוק הפעיל. לא נמחק, ה-JS עדיין מפעיל את uv-visible. */
+    .uv-big-play-btn.uv-visible { display: none !important; }
     .uv-meter-fill {
       width: 100%;
       height: 100%;
@@ -899,6 +917,18 @@
       const audio = document.getElementById('srtPlayer');
       icon.textContent = audio.paused ? '▶' : '⏸'; // מציג את הפעולה שתקרה בלחיצה (לא את המצב הנוכחי)
       icon.style.display = 'block';
+    }
+
+    // מציג את הסמל (▶/⏸) ברקע הפסוק לרגע ואז מעלים אותו - בהשראת נגני וידאו (תגובה חזותית ללחיצה,
+    // לא מד מצב קבוע). מתאפס אם לוחצים שוב לפני שהסמל הקודם הספיק להיעלם.
+    let uvFlashIconTimer = null;
+    function uvFlashPlayIcon(row, symbol) {
+      const el = row && row.querySelector('.uv-flash-icon');
+      if (!el) return;
+      el.textContent = symbol;
+      el.classList.add('uv-flash-visible');
+      clearTimeout(uvFlashIconTimer);
+      uvFlashIconTimer = setTimeout(() => el.classList.remove('uv-flash-visible'), 600);
     }
 
     function uvShowBigPlayBtn(show) {
@@ -1509,6 +1539,7 @@
           </span>
           <span class="uv-row-text">${escHtml(v.text)}</span>
           <span class="uv-row-spacer" aria-hidden="true"></span>
+          <span class="uv-flash-icon" aria-hidden="true"></span>
           <span class="uv-play-state-icon" aria-hidden="true"></span>
           <div class="uv-meter"><div class="uv-meter-fill"></div></div>
         </${rowTag}>`).join('');
@@ -2004,7 +2035,8 @@
       if (idx === uvCurrentIdx) {
         // לחיצה על הפסוק הנוכחי (לא פסוק אחר) - רק toggle לניגון, בלי seek
         const audio = document.getElementById('srtPlayer');
-        if (audio.paused) audio.play().catch(() => {}); else audio.pause();
+        if (audio.paused) { audio.play().catch(() => {}); uvFlashPlayIcon(row, '▶'); }
+        else { audio.pause(); uvFlashPlayIcon(row, '⏸'); }
       } else {
         uvSeekTo(idx); // גורם לפסוק הזה להיות הנוכחי - לא נוגע במצב הניגון בכלל
       }
