@@ -867,13 +867,14 @@
         oldRow.classList.remove('uv-meter-focus-top');
       }
       uvMeterRowIdx = null;
-      // כפתור PLAY גדול מוצג רק לפני שהניגון בפועל אי-פעם קרה (audioEverPlayed) - כרמז "תלחץ כאן"
-      // יחיד. לא אפשר להסתמך על uvCurrentIdx===null בשביל זה: הוא מתמוטט ל-idx=-1 (לפני הפסוק
-      // הראשון) כבר ב-updateUserViewPlayback הראשון שרץ אוטומטית ב-toggleUserView (בלי אינטראקציה
-      // בכלל, כי audio.currentTime=0 בהתחלה ופסוק 0 לרוב מתחיל אחרי זמן 0). audioEverPlayed נהפך
-      // ל-true רק ב-'play' event אמיתי (לחיצה על הכפתור/פסוק/גרירת הבר) ונשאר true לצמיתות עד רענון.
-      uvShowBigPlayBtn(!audioEverPlayed);
       const beforeFirstVerse = uvCurrentIdx !== null && uvCurrentIdx < 0;
+      // כפתור PLAY גדול מוצג לפני שהניגון בפועל אי-פעם קרה (audioEverPlayed) - כרמז "תלחץ כאן" יחיד -
+      // וגם בכל פעם שחוזרים למצב "לפני הפסוק הראשון" (למשל גרירת פס ה-seek בחזרה לזמן 0), כי אז אין
+      // שורה "נוכחית" שהפלאש שלה יכול להיצמד אליה. לא אפשר להסתמך רק על uvCurrentIdx===null בשביל
+      // הרמז הראשוני: הוא מתמוטט ל-idx=-1 כבר ב-updateUserViewPlayback הראשון שרץ אוטומטית
+      // ב-toggleUserView (בלי אינטראקציה בכלל, כי פסוק 0 לרוב מתחיל אחרי זמן 0) - audioEverPlayed
+      // הופך ל-true רק ב-'play' event אמיתי ונשאר true לצמיתות עד רענון.
+      uvShowBigPlayBtn(!audioEverPlayed || beforeFirstVerse);
       if (!showMeter || uvCurrentIdx === null) return;
       const targetIdx = beforeFirstVerse ? 0 : (meterPosition === 'next' ? uvCurrentIdx + 1 : uvCurrentIdx);
       const row = uvRowEls[targetIdx];
