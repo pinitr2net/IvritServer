@@ -276,27 +276,6 @@
       padding: 0;
     }
     #captionToggleBtn.uv-off { background: #94a3b8; }
-    #sequenceToggleBtn {
-      position: fixed;
-      top: 68px;
-      left: 16px;
-      z-index: 200;
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      border: none;
-      background: #0891b2;
-      color: #fff;
-      font-size: 1.2rem;
-      line-height: 1;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 0;
-    }
-    #sequenceToggleBtn.uv-off { background: #94a3b8; }
     #commitInfoBtn {
       position: fixed;
       top: 68px;
@@ -492,7 +471,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 0 68px;
+      padding: 0px;
       box-sizing: border-box;
       font-size: 1.05rem;
       font-weight: 600;
@@ -704,7 +683,6 @@
   <div id="stickyPlayer"><audio id="srtPlayer" controls style="width:100%;"></audio></div>
   <button id="viewToggleFab" disabled onclick="toggleUserView()" title="החלף תצוגה">📖</button>
   <button id="captionToggleBtn" class="uv-off" onclick="toggleCaptions()" title="הצג כתוביות">💬</button>
-  <button id="sequenceToggleBtn" class="uv-off" onclick="toggleSequenceMode()" title="מעבר לתצוגת רצף">🔗</button>
   <button id="commitInfoBtn" onclick="showCommitInfo()" title="מידע קומיט">🔖</button>
   <div id="commitInfoOverlay" onclick="if (event.target === this) hideCommitInfo()">
     <div id="commitInfoPopup">
@@ -838,6 +816,9 @@
     let lastCaptionSegId = null;
     let uvVerses = [];
     let uvCurrentIdx = null; // null = not yet rendered; forces an initial render even if idx computes to -1
+    // מוצהר כאן (מוקדם) ולא רק ליד מאזיני ה-play/pause שמשתמשים בו - applyMeterVisibility (רחוק למטה)
+    // כבר קורא לו בקריאה המיידית הראשונה שלו, לפני שהגענו לשורה שמאזינה לאירועים בפועל.
+    let audioEverPlayed = false;
     let uvGestureCooldown = false;
     let uvTouchStartY = null;
     let uvRowEls = [];
@@ -858,9 +839,6 @@
     let uvPauseHandledIdx = null;
     let sequenceMode = new URLSearchParams(location.search).get('rezef') === '1';
     document.getElementById('userView').classList.toggle('uv-sequence-mode', sequenceMode);
-    document.getElementById('sequenceToggleBtn').classList.toggle('uv-off', !sequenceMode);
-    document.getElementById('sequenceToggleBtn').textContent = sequenceMode ? '📄' : '🔗';
-    document.getElementById('sequenceToggleBtn').title = sequenceMode ? 'מעבר לתצוגה רגילה' : 'מעבר לתצוגת רצף';
     // מצב אופציונלי: כל פסוק הופך ללינק לספריא (נפתח בטאב חדש) במקום seek בנגן - לא נוגע בהתנהגות הרגילה.
     const linkerMode = new URLSearchParams(location.search).get('linker') === '1';
     if (linkerMode) document.getElementById('userView').classList.add('uv-linker-mode');
@@ -889,10 +867,12 @@
         oldRow.classList.remove('uv-meter-focus-top');
       }
       uvMeterRowIdx = null;
-      // כפתור PLAY גדול מוצג רק לפני כל אינטראקציה (uvCurrentIdx === null, ממש ברענון טרי) - כרמז
-      // "תלחץ כאן" יחיד; אחרי אינטראקציה ראשונה uvCurrentIdx כבר לא null לצמיתות (עד רענון הבא),
-      // אז הוא נעלם ולא חוזר - האייקון המבזיק בכל שורה מכסה את כל שאר המצבים, כולל -1.
-      uvShowBigPlayBtn(uvCurrentIdx === null);
+      // כפתור PLAY גדול מוצג רק לפני שהניגון בפועל אי-פעם קרה (audioEverPlayed) - כרמז "תלחץ כאן"
+      // יחיד. לא אפשר להסתמך על uvCurrentIdx===null בשביל זה: הוא מתמוטט ל-idx=-1 (לפני הפסוק
+      // הראשון) כבר ב-updateUserViewPlayback הראשון שרץ אוטומטית ב-toggleUserView (בלי אינטראקציה
+      // בכלל, כי audio.currentTime=0 בהתחלה ופסוק 0 לרוב מתחיל אחרי זמן 0). audioEverPlayed נהפך
+      // ל-true רק ב-'play' event אמיתי (לחיצה על הכפתור/פסוק/גרירת הבר) ונשאר true לצמיתות עד רענון.
+      uvShowBigPlayBtn(!audioEverPlayed);
       const beforeFirstVerse = uvCurrentIdx !== null && uvCurrentIdx < 0;
       if (!showMeter || uvCurrentIdx === null) return;
       const targetIdx = beforeFirstVerse ? 0 : (meterPosition === 'next' ? uvCurrentIdx + 1 : uvCurrentIdx);
@@ -1091,7 +1071,6 @@
       document.getElementById('userViewCaption').textContent = '';
       document.getElementById('userViewTitle').textContent = '';
       document.getElementById('userViewCaption').style.display = 'none';
-      document.getElementById('sequenceToggleBtn').style.display = 'none';
       lastCaptionSegId = null;
       uvVerses = [];
       uvCurrentIdx = null;
@@ -1459,7 +1438,6 @@
       fab.textContent = userViewActive ? '🛠️' : '📖';
       fab.title = userViewActive ? 'חזרה לתצוגת ניפוי' : 'תצוגת משתמש';
       document.getElementById('captionToggleBtn').style.display = userViewActive ? 'none' : 'flex';
-      document.getElementById('sequenceToggleBtn').style.display = userViewActive ? 'flex' : 'none';
       if (isDebugRoute) document.getElementById('commitInfoBtn').style.display = userViewActive ? 'flex' : 'none';
       if (userViewActive) {
         if (!noRafLoops) renderUserView();
@@ -1483,23 +1461,6 @@
       const btn = document.getElementById('captionToggleBtn');
       btn.classList.toggle('uv-off', !captionsVisible);
       btn.title = captionsVisible ? 'הסתר כתוביות' : 'הצג כתוביות';
-    }
-
-    function toggleSequenceMode() {
-      sequenceMode = !sequenceMode;
-      document.getElementById('userView').classList.toggle('uv-sequence-mode', sequenceMode);
-      const btn = document.getElementById('sequenceToggleBtn');
-      btn.classList.toggle('uv-off', !sequenceMode);
-      btn.textContent = sequenceMode ? '📄' : '🔗';
-      btn.title = sequenceMode ? 'מעבר לתצוגה רגילה' : 'מעבר לתצוגת רצף';
-      uvCurrentChapterNum = null;
-      document.getElementById('userViewTitle').textContent = sequenceMode ? '' : (lastData.title || '');
-      if (sequenceMode) uvUpdateStickyChapter(uvCurrentIdx);
-      if (uvRowEls.length) {
-        uvMeasureRows();
-        renderUvActive();
-        uvPositionTrack();
-      }
     }
 
     let commitInfoCache = null;
@@ -1728,7 +1689,6 @@
       if (uvPauseWatchRaf !== null) { cancelAnimationFrame(uvPauseWatchRaf); uvPauseWatchRaf = null; }
     }
 
-    let audioEverPlayed = false;
     document.getElementById('srtPlayer').addEventListener('play', () => { audioEverPlayed = true; uvUpdatePlayStateIcon(); uvUpdateBigPlayBtn(); requestWakeLock(); });
     document.getElementById('srtPlayer').addEventListener('pause', () => { uvUpdatePlayStateIcon(); uvUpdateBigPlayBtn(); releaseWakeLock(); });
 
