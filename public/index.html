@@ -1767,7 +1767,10 @@
         const dist = Math.abs(uvVerses[i].sec - targetSec);
         if (dist < nearestDist) { nearestDist = dist; nearestIdx = i; }
       }
-      if (nearestIdx !== uvCurrentIdx) uvSeekTo(nearestIdx);
+      if (nearestIdx !== uvCurrentIdx) {
+        uvSeekTo(nearestIdx); // תמיד מסתיים בהשהיה (ראו uvSeekTo)
+        if (nearestIdx >= 0 && uvRowEls[nearestIdx]) uvFlashPlayIcon(uvRowEls[nearestIdx], '⏸');
+      }
       uvSeekBarRender((nearestIdx >= 0 ? uvVerses[nearestIdx].sec : 0) / audio.duration);
     }
 
