@@ -651,8 +651,8 @@
     .uv-big-play-btn {
       display: none;
       position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
+      top: 70px; left: 50%;
+      transform: translateX(-50%);
       width: 4rem; height: 4rem;
       border-radius: 50%;
       border: none;
@@ -872,10 +872,10 @@
         oldRow.classList.remove('uv-meter-focus-top');
       }
       uvMeterRowIdx = null;
-      // לפני שההשמעה מגיעה לפסוק הראשון (uvCurrentIdx === -1) - כפתור PLAY גדול מחליף את בקרת הניגון
-      // של הנגן המוסתר, בלי תלות בהגדרת showMeter (זו בקרה, לא מד התקדמות קישוטי)
+      // כפתור PLAY גדול מוצג תמיד (לא רק לפני הפסוק הראשון) - בקרת ניגון/השהיה קבועה, בלי תלות
+      // בהגדרת showMeter (זו בקרה, לא מד התקדמות קישוטי)
+      uvShowBigPlayBtn(true);
       const beforeFirstVerse = uvCurrentIdx !== null && uvCurrentIdx < 0;
-      uvShowBigPlayBtn(beforeFirstVerse);
       if (!showMeter || uvCurrentIdx === null) return;
       const targetIdx = beforeFirstVerse ? 0 : (meterPosition === 'next' ? uvCurrentIdx + 1 : uvCurrentIdx);
       const row = uvRowEls[targetIdx];
@@ -905,11 +905,7 @@
       const btn = document.getElementById('uvBigPlayBtn');
       if (!btn) return;
       btn.classList.toggle('uv-visible', show);
-      if (show) {
-        uvUpdateBigPlayBtn();
-        const viewport = document.getElementById('userViewVerses');
-        uvPositionBigPlayBtn(viewport.clientHeight * UV_ANCHOR_RATIO);
-      }
+      if (show) uvUpdateBigPlayBtn();
     }
 
     function uvUpdateBigPlayBtn() {
@@ -1567,15 +1563,6 @@
         if (topRow) centerY = Math.min(centerY, rowCenter - topRow.offsetTop);
       }
       track.style.transform = `translateY(${centerY - rowCenter}px)`;
-      uvPositionBigPlayBtn(centerY);
-    }
-
-    function uvPositionBigPlayBtn(centerY) {
-      const btn = document.getElementById('uvBigPlayBtn');
-      if (!btn || !btn.classList.contains('uv-visible')) return;
-      // ממקמים את הכפתור באמצע השטח הריק שמעל הפסוק הראשון (בין ראש התצוגה לבין העוגן של השורה) -
-      // כך שהוא תמיד מעל הפסוקים ולא מסתיר אותם, בלי קשר לגובה ה-viewport בפועל
-      btn.style.top = (centerY / 2) + 'px';
     }
 
     let uvScrollRaf = null;
@@ -1733,8 +1720,13 @@
     });
     // רשת ביטחון: אם הנגיעה הראשונה בכלל היא גרירת פס ההתקדמות המקורי (לא לחיצה על פסוק),
     // uvSeekTo לא נקרא כלל - מעירים את הנגן גם על כל אינטראקציה ראשונה בעמוד.
-    document.addEventListener('pointerdown', () => {
+    document.addEventListener('pointerdown', (e) => {
       if (audioEverPlayed) return;
+      // כפתור ה-play הגדול כבר עושה play/pause toggle בעצמו לפי audio.paused - ה"העירו" הגלובלי הזה
+      // כבר הופך את paused ל-false ברגע ש-play() נקרא (סינכרוני, לפי הספק), עוד לפני שאירוע ה-click
+      // של הכפתור מגיע להריץ את ה-toggle שלו - ואז ה-toggle רואה paused=false וקורא מיד ל-pause()
+      // (לחיצה ראשונה "לא עובדת"). לחיצה על הכפתור עצמו היא כבר אינטראקציה אמיתית שתפעיל play() משלה.
+      if (e.target.closest('#uvBigPlayBtn')) return;
       document.getElementById('srtPlayer').play().catch(() => {});
     }, { once: true, capture: true });
 
