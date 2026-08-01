@@ -571,6 +571,7 @@
     }
     .uv-row.uv-active:hover { opacity: 1; }
     .uv-row.uv-hidden-hist { opacity: 0; pointer-events: none; }
+    .uv-row.uv-meter-focus-top { opacity: 1; }
     .uv-num-badge {
       flex: 0 0 var(--uv-num-col);
       height: calc(1.3rem * 1.7);
@@ -598,6 +599,7 @@
     }
     .uv-row.uv-active .uv-verse-num { color: #64748b; font-weight: 600; }
     .uv-chapter-num {
+      display: none;
       flex: 0 0 var(--uv-num-slot);
       text-align: center;
       font-size: 0.8rem;
@@ -649,10 +651,24 @@
       pointer-events: none;
       user-select: none;
     }
-    .uv-play-state-icon.uv-icon-top {
-      bottom: auto;
-      top: -14px;
+    .uv-big-play-btn {
+      display: none;
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 4rem; height: 4rem;
+      border-radius: 50%;
+      border: none;
+      background: #f5a623;
+      color: #fff;
+      font-size: 1.6rem;
+      line-height: 1;
+      align-items: center; justify-content: center;
+      cursor: pointer;
+      z-index: 2;
+      padding: 0;
     }
+    .uv-big-play-btn.uv-visible { display: flex; }
     .uv-meter-fill {
       width: 100%;
       height: 100%;
@@ -767,6 +783,7 @@
         <div id="uvSeekBarHandle"></div>
       </div>
       <div id="userViewVerses">
+        <button type="button" class="uv-big-play-btn" id="uvBigPlayBtn" aria-label="נגן/השהה"></button>
         <div id="uvTrack"></div>
       </div>
     </div>
@@ -850,16 +867,19 @@
 
     function applyMeterVisibility() {
       if (uvMeterRowIdx !== null && uvRowEls[uvMeterRowIdx]) {
-        const old = uvRowEls[uvMeterRowIdx].querySelector('.uv-meter');
+        const oldRow = uvRowEls[uvMeterRowIdx];
+        const old = oldRow.querySelector('.uv-meter');
         if (old) { old.style.display = 'none'; old.classList.remove('uv-meter-top'); }
-        const oldIcon = uvRowEls[uvMeterRowIdx].querySelector('.uv-play-state-icon');
-        if (oldIcon) { oldIcon.style.display = 'none'; oldIcon.classList.remove('uv-icon-top'); }
+        const oldIcon = oldRow.querySelector('.uv-play-state-icon');
+        if (oldIcon) oldIcon.style.display = 'none';
+        oldRow.classList.remove('uv-meter-focus-top');
       }
       uvMeterRowIdx = null;
+      // לפני שההשמעה מגיעה לפסוק הראשון (uvCurrentIdx === -1) - כפתור PLAY גדול מחליף את בקרת הניגון
+      // של הנגן המוסתר, בלי תלות בהגדרת showMeter (זו בקרה, לא מד התקדמות קישוטי)
+      const beforeFirstVerse = uvCurrentIdx !== null && uvCurrentIdx < 0;
+      uvShowBigPlayBtn(beforeFirstVerse);
       if (!showMeter || uvCurrentIdx === null) return;
-      // לפני שההשמעה מגיעה לפסוק הראשון (uvCurrentIdx === -1) אין שורת "נוכחי"/"הבא" רגילה להיצמד אליה -
-      // מציגים את הפס מעל הפסוק הראשון עצמו (שורה 0) עד שהוא מתחיל
-      const beforeFirstVerse = uvCurrentIdx < 0;
       const targetIdx = beforeFirstVerse ? 0 : (meterPosition === 'next' ? uvCurrentIdx + 1 : uvCurrentIdx);
       const row = uvRowEls[targetIdx];
       if (!row) return;
@@ -867,8 +887,7 @@
       if (!meterEl) return;
       meterEl.classList.toggle('uv-meter-top', beforeFirstVerse);
       meterEl.style.display = 'block';
-      const iconEl = row.querySelector('.uv-play-state-icon');
-      if (iconEl) iconEl.classList.toggle('uv-icon-top', beforeFirstVerse);
+      row.classList.toggle('uv-meter-focus-top', beforeFirstVerse);
       uvMeterRowIdx = targetIdx;
       uvUpdatePlayStateIcon();
     }
@@ -877,9 +896,30 @@
       if (uvMeterRowIdx === null || !uvRowEls[uvMeterRowIdx]) return;
       const icon = uvRowEls[uvMeterRowIdx].querySelector('.uv-play-state-icon');
       if (!icon) return;
+      // לפני הפסוק הראשון (uvCurrentIdx === -1) אין את האייקון הקטן - יש כפתור PLAY גדול במקום -
+      // חייב להיבדק כאן ולא רק במקום שקורא ל-applyMeterVisibility, כי גם מאזיני play/pause קוראים לפונקציה הזו ישירות
+      if (uvCurrentIdx === null || uvCurrentIdx < 0) { icon.style.display = 'none'; return; }
       const audio = document.getElementById('srtPlayer');
-      icon.textContent = audio.paused ? '⏸' : '▶';
+      icon.textContent = audio.paused ? '▶' : '⏸'; // מציג את הפעולה שתקרה בלחיצה (לא את המצב הנוכחי)
       icon.style.display = 'block';
+    }
+
+    function uvShowBigPlayBtn(show) {
+      const btn = document.getElementById('uvBigPlayBtn');
+      if (!btn) return;
+      btn.classList.toggle('uv-visible', show);
+      if (show) {
+        uvUpdateBigPlayBtn();
+        const viewport = document.getElementById('userViewVerses');
+        uvPositionBigPlayBtn(viewport.clientHeight * UV_ANCHOR_RATIO);
+      }
+    }
+
+    function uvUpdateBigPlayBtn() {
+      const btn = document.getElementById('uvBigPlayBtn');
+      if (!btn || !btn.classList.contains('uv-visible')) return;
+      const audio = document.getElementById('srtPlayer');
+      btn.textContent = audio.paused ? '▶' : '⏸';
     }
 
     function setPrevVersesCount(n) {
@@ -1530,6 +1570,15 @@
         if (topRow) centerY = Math.min(centerY, rowCenter - topRow.offsetTop);
       }
       track.style.transform = `translateY(${centerY - rowCenter}px)`;
+      uvPositionBigPlayBtn(centerY);
+    }
+
+    function uvPositionBigPlayBtn(centerY) {
+      const btn = document.getElementById('uvBigPlayBtn');
+      if (!btn || !btn.classList.contains('uv-visible')) return;
+      // ממקמים את הכפתור באמצע השטח הריק שמעל הפסוק הראשון (בין ראש התצוגה לבין העוגן של השורה) -
+      // כך שהוא תמיד מעל הפסוקים ולא מסתיר אותם, בלי קשר לגובה ה-viewport בפועל
+      btn.style.top = (centerY / 2) + 'px';
     }
 
     let uvScrollRaf = null;
@@ -1665,8 +1714,8 @@
     }
 
     let audioEverPlayed = false;
-    document.getElementById('srtPlayer').addEventListener('play', () => { audioEverPlayed = true; uvUpdatePlayStateIcon(); requestWakeLock(); });
-    document.getElementById('srtPlayer').addEventListener('pause', () => { uvUpdatePlayStateIcon(); releaseWakeLock(); });
+    document.getElementById('srtPlayer').addEventListener('play', () => { audioEverPlayed = true; uvUpdatePlayStateIcon(); uvUpdateBigPlayBtn(); requestWakeLock(); });
+    document.getElementById('srtPlayer').addEventListener('pause', () => { uvUpdatePlayStateIcon(); uvUpdateBigPlayBtn(); releaseWakeLock(); });
 
     // Wake Lock: מונע מהמסך להיכבות/להינעל בזמן ניגון (בלי נגיעה במסך). ה-wake lock משתחרר
     // אוטומטית ע"י הדפדפן כשהעמוד עובר לרקע (טאב אחר/מסך ננעל) - צריך לבקש אותו מחדש
@@ -1723,13 +1772,19 @@
       return Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
     }
 
+    // הגרירה נצמדת תמיד לתחילת הפסוק הקרוב ביותר (לא לזמן רציף בתוך פסוק) - גם תוך כדי גרירה.
     function uvSeekBarApply(frac) {
       const audio = document.getElementById('srtPlayer');
-      if (!isFinite(audio.duration) || audio.duration <= 0) return;
-      // אותו idiom כמו uvSeekTo - seek לפני play ראשון תוקע לצמיתות ב-iOS
-      if (!audioEverPlayed) { audio.play().catch(() => {}); audio.pause(); }
-      audio.currentTime = frac * audio.duration;
-      uvSeekBarRender(frac);
+      if (!isFinite(audio.duration) || audio.duration <= 0 || !uvVerses.length) return;
+      const targetSec = frac * audio.duration;
+      let nearestIdx = 0;
+      let nearestDist = Infinity;
+      for (let i = 0; i < uvVerses.length; i++) {
+        const dist = Math.abs(uvVerses[i].sec - targetSec);
+        if (dist < nearestDist) { nearestDist = dist; nearestIdx = i; }
+      }
+      if (nearestIdx !== uvCurrentIdx) uvSeekTo(nearestIdx);
+      uvSeekBarRender(uvVerses[nearestIdx].sec / audio.duration);
     }
 
     let uvSeekBarDragging = false;
@@ -1942,6 +1997,11 @@
     document.getElementById('commentaryDrawerNextVerse').addEventListener('click', () => {
       const idx = uvVerses.indexOf(commentaryDrawerVerse);
       if (idx !== -1 && idx < uvVerses.length - 1) uvSeekTo(idx + 1);
+    });
+
+    document.getElementById('uvBigPlayBtn').addEventListener('click', () => {
+      const audio = document.getElementById('srtPlayer');
+      if (audio.paused) audio.play().catch(() => {}); else audio.pause();
     });
 
     document.getElementById('uvTrack').addEventListener('click', (e) => {
