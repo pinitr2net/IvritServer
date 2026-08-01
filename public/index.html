@@ -1992,10 +1992,7 @@
       if (linkerMode) return; // הפסוק הוא לינק אמיתי לספריא - נותנים לניווט הדפדפן הרגיל לקרות
       const idx = parseInt(row.dataset.idx, 10);
       if (Number.isNaN(idx)) return;
-      // לפני שהניגון הגיע לפסוק הראשון (uvCurrentIdx === -1) - פסוק 0 עצמו נחשב "הנוכחי" לצורך
-      // toggle, בדיוק כמו שהמד (uv-meter) כבר מתמקד בו במצב הזה - במקום "לקפוץ" למקום שכבר כמעט שם.
-      const isCurrentForToggle = idx === uvCurrentIdx || (idx === 0 && uvCurrentIdx !== null && uvCurrentIdx < 0);
-      if (isCurrentForToggle) {
+      if (idx === uvCurrentIdx) {
         // לחיצה על הפסוק הנוכחי (לא פסוק אחר) - רק toggle לניגון, בלי seek
         const audio = document.getElementById('srtPlayer');
         if (audio.paused) { audio.play().catch(() => {}); uvFlashPlayIcon(row, '▶'); }
