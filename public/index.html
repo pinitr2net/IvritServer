@@ -640,7 +640,7 @@
       font-size: 0.7rem;
       line-height: 1;
       color: #f5a623;
-      display: none !important;
+      display: none;
       pointer-events: none;
       user-select: none;
     }
@@ -1767,10 +1767,7 @@
         const dist = Math.abs(uvVerses[i].sec - targetSec);
         if (dist < nearestDist) { nearestDist = dist; nearestIdx = i; }
       }
-      if (nearestIdx !== uvCurrentIdx) {
-        uvSeekTo(nearestIdx); // תמיד מסתיים בהשהיה (ראו uvSeekTo)
-        if (nearestIdx >= 0 && uvRowEls[nearestIdx]) uvFlashPlayIcon(uvRowEls[nearestIdx], '⏸');
-      }
+      if (nearestIdx !== uvCurrentIdx) uvSeekTo(nearestIdx); // תמיד מסתיים בהשהיה (ראו uvSeekTo)
       uvSeekBarRender((nearestIdx >= 0 ? uvVerses[nearestIdx].sec : 0) / audio.duration);
     }
 
@@ -1786,8 +1783,15 @@
         if (!uvSeekBarDragging) return;
         uvSeekBarApply(uvSeekBarFractionFromEvent(e));
       });
+      // ההבזק ▶/⏸ ברקע מוצג רק בהנחת האצבע (pointerup) - לא תוך כדי גרירה, אחרת כל פסוק שעוברים
+      // עליו בדרך מהבהב, לא רק היעד הסופי.
       ['pointerup', 'pointercancel'].forEach(evt =>
-        bar.addEventListener(evt, () => { uvSeekBarDragging = false; }));
+        bar.addEventListener(evt, () => {
+          uvSeekBarDragging = false;
+          if (uvCurrentIdx !== null && uvCurrentIdx >= 0 && uvRowEls[uvCurrentIdx]) {
+            uvFlashPlayIcon(uvRowEls[uvCurrentIdx], '⏸');
+          }
+        }));
       // מונע מהמחוות לבעבע ל-listeners של swipe-ניווט/wheel שמאזינים על #userView כולו
       ['touchstart', 'touchmove', 'touchend', 'wheel'].forEach(evt =>
         bar.addEventListener(evt, (e) => e.stopPropagation(), { passive: evt !== 'wheel' }));
@@ -1997,11 +2001,17 @@
       if (linkerMode) return; // הפסוק הוא לינק אמיתי לספריא - נותנים לניווט הדפדפן הרגיל לקרות
       const idx = parseInt(row.dataset.idx, 10);
       if (Number.isNaN(idx)) return;
+      const audio = document.getElementById('srtPlayer');
       if (idx === uvCurrentIdx) {
         // לחיצה על הפסוק הנוכחי (לא פסוק אחר) - רק toggle לניגון, בלי seek
-        const audio = document.getElementById('srtPlayer');
         if (audio.paused) { audio.play().catch(() => {}); uvFlashPlayIcon(row, '▶'); }
         else { audio.pause(); uvFlashPlayIcon(row, '⏸'); }
+      } else if (!audio.paused) {
+        // מתנגן כרגע - לחיצה על פסוק אחר רק עוצרת, לא עוברת אליו (למניעת seek בטעות תוך כדי האזנה)
+        audio.pause();
+        if (uvCurrentIdx !== null && uvCurrentIdx >= 0 && uvRowEls[uvCurrentIdx]) {
+          uvFlashPlayIcon(uvRowEls[uvCurrentIdx], '⏸');
+        }
       } else {
         uvSeekTo(idx); // גורם לפסוק הזה להיות הנוכחי - תמיד מסתיים בהשהיה (ראו uvSeekTo)
         uvFlashPlayIcon(row, '⏸');
