@@ -423,8 +423,9 @@
     #commentaryDrawerRef { display: none; }
     #commentaryDrawerBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; font-size: 1.05rem; line-height: 1.6; color: #1e293b; }
     #userViewTitle {
+      padding-top: 10px;
       flex-shrink: 0;
-      height: 4.5rem;
+      height: 3.0rem;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -620,7 +621,7 @@
     .uv-big-play-btn {
       display: none;
       position: absolute;
-      top: 0px; left: 50%;
+      top: 50%; left: 50%;
       transform: translateX(-50%);
       width: 4rem; height: 4rem;
       border-radius: 50%;
@@ -1548,7 +1549,11 @@
       // אם הייתה מוגדרת פה גם transition, ה-translateY של uvTrack (שיש לו transition לצעדי פסוקים)
       // היה "רודף" אחרי יעד שכל הזמן זז במהלך אנימציית הפתיחה/סגירה - נראה כפיגור, לא כתזוזה יחד.
       const drawerCoverPx = uvGetDrawerCoverPx(viewport.getBoundingClientRect());
-      document.getElementById('uvDrawerShift').style.transform = `translateY(${-drawerCoverPx * UV_ANCHOR_RATIO}px)`;
+      const drawerShiftPx = -drawerCoverPx * UV_ANCHOR_RATIO;
+      document.getElementById('uvDrawerShift').style.transform = `translateY(${drawerShiftPx}px)`;
+      // כפתור ה-play/pause הגדול הוא אח של uvDrawerShift (לא בתוכו, כי uvTrack עובר בו innerHTML
+      // מלא) - מקבל את אותה הזזה ידנית כדי לעלות יחד עם הפסוקים כשהמגירה נפתחת
+      document.getElementById('uvBigPlayBtn').style.transform = `translateX(-50%) translateY(${drawerShiftPx}px)`;
     }
 
     let uvScrollRaf = null;
@@ -1701,6 +1706,10 @@
       if (!uvMeterDragging) return;
       uvMeterDragging = false;
       uvMeterJustDragged = true;
+      // במגע (טאץ') גרירה אמיתית (תזוזה משמעותית) לא מייצרת בכלל 'click' סינתטי בסיום המחווה -
+      // הדגל היה נשאר true עד הלחיצה האמיתית הבאה של המשתמש ו"בולע" אותה בלי סיבה. טיימאאוט קצר
+      // מאפס אותו בעצמו אם לא הגיע click "הד" מיידי (עכבר כן מייצר click גם אחרי גרירה - זה נבלע כרגיל).
+      setTimeout(() => { uvMeterJustDragged = false; }, 350);
       updateUserViewPlayback(); // סנכרון אחד-פעמי בסיום הגרירה - ראו למה מדולג תוך כדי גרירה בהערה שם
     }));
     // מונע מהמחוות לבעבע ל-listeners של swipe-ניווט/wheel שמאזינים על #userView כולו
@@ -1818,6 +1827,9 @@
       bar.addEventListener('pointerdown', (e) => {
         uvSeekBarDragging = true;
         bar.setPointerCapture(e.pointerId);
+        // עוצר תמיד עם הנחת האצבע, גם אם הפסוק הקרוב ביותר זהה לנוכחי (uvSeekTo לא היה נקרא אז,
+        // וה-audio היה ממשיך לנגן תוך כדי גרירה בתוך "האזור" של הפסוק המתנגן)
+        document.getElementById('srtPlayer').pause();
         uvSeekBarApply(uvSeekBarFractionFromEvent(e));
       });
       bar.addEventListener('pointermove', (e) => {
@@ -2070,15 +2082,11 @@
         // לחיצה על הפסוק הנוכחי (לא פסוק אחר) - רק toggle לניגון, בלי seek
         if (audio.paused) { audio.play().catch(() => {}); uvFlashPlayIcon(row, '▶'); }
         else { audio.pause(); uvFlashPlayIcon(row, '⏸'); }
-      } else if (!audio.paused && uvCurrentIdx !== -1) {
-        // מתנגן כרגע ויש פסוק נוכחי אמיתי - לחיצה על פסוק אחר רק עוצרת, לא עוברת אליו (למניעת seek בטעות תוך כדי האזנה)
-        audio.pause();
-        if (uvCurrentIdx !== null && uvCurrentIdx >= 0 && uvRowEls[uvCurrentIdx]) {
-          uvFlashPlayIcon(uvRowEls[uvCurrentIdx], '⏸');
-        }
       } else {
-        uvSeekTo(idx); // גורם לפסוק הזה להיות הנוכחי - תמיד מסתיים בהשהיה (ראו uvSeekTo)
-        uvFlashPlayIcon(row, '⏸');
+        // לחיצה על פסוק אחר - תמיד מנווטת אליו ומתחילה לנגן ממנו, בלי קשר למצב הקודם (מנגן/עצור)
+        uvSeekTo(idx); // מעדכן את uvCurrentIdx ומדלג ל-currentTime של הפסוק (מסיים ב-pause פנימי משלו)
+        audio.play().catch(() => {});
+        uvFlashPlayIcon(row, '▶');
       }
     });
 
@@ -2118,6 +2126,13 @@
       if (!userViewActive) return;
       if (e.key === 'ArrowDown') { e.preventDefault(); uvNavigate(1); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); uvNavigate(-1); }
+      else if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        const audio = document.getElementById('srtPlayer');
+        const row = (uvCurrentIdx !== null && uvCurrentIdx >= 0) ? uvRowEls[uvCurrentIdx] : null;
+        if (audio.paused) { audio.play().catch(() => {}); if (row) uvFlashPlayIcon(row, '▶'); }
+        else { audio.pause(); if (row) uvFlashPlayIcon(row, '⏸'); }
+      }
     });
 
     function updateUserViewPlayback() {
