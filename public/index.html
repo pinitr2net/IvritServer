@@ -420,7 +420,7 @@
     }
     .commentary-option:hover { background: #f1f5f9; }
     .commentary-option.active { font-weight: 700; color: #1e293b; }
-    #commentaryDrawerRef { flex-shrink: 0; font-weight: 600; color: #64748b; margin: 0.6rem 0 0.4rem; font-size: 0.95rem; cursor: pointer; }
+    #commentaryDrawerRef { display: none; }
     #commentaryDrawerBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; font-size: 1.05rem; line-height: 1.6; color: #1e293b; }
     #userViewTitle {
       flex-shrink: 0;
@@ -473,23 +473,6 @@
       border-radius: 50%;
       background: #0891b2;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-    }
-    #uvSeekBarDots {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-    }
-    .uv-seekbar-dot {
-      position: absolute;
-      top: 0.4rem; left: 50%;
-      width: 5px; height: 5px;
-      margin-left: -2.5px; margin-top: -2.5px;
-      border-radius: 50%;
-      background: #fff;
-      box-shadow: 0 0 0 1px rgba(0,0,0,0.35);
-      transform: scale(1);
-      transition: transform 0.12s ease-out;
-      will-change: transform;
     }
     #userViewVerses {
       flex: 1 1 auto;
@@ -774,7 +757,6 @@
       <div id="uvSeekBar">
         <div id="uvSeekBarTrack"></div>
         <div id="uvSeekBarFill"></div>
-        <div id="uvSeekBarDots"></div>
         <div id="uvSeekBarHandle"></div>
       </div>
       <div id="userViewVerses">
@@ -1508,7 +1490,6 @@
       uvRowChapterEls = uvRowEls.map(el => el.querySelector('.uv-chapter-num'));
       uvMeasureRows();
       uvPositionTrack();
-      uvRenderSeekBarDots();
       if (sequenceMode) {
         uvCurrentChapterNum = null;
         uvUpdateStickyChapter(uvCurrentIdx);
@@ -1815,40 +1796,6 @@
       return Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
     }
 
-    // נקודה לכל פסוק - מסמנת בפס הגרירה את נקודות העצירה (אותן נקודות שהגרירה נצמדת אליהן ב-uvSeekBarApply).
-    // תלויה ב-audio.duration, שלא בהכרח ידוע עדיין כשהפסוקים נטענים - מרונדרת מחדש גם ב-loadedmetadata.
-    function uvRenderSeekBarDots() {
-      const container = document.getElementById('uvSeekBarDots');
-      const audio = document.getElementById('srtPlayer');
-      if (!container) return;
-      if (!isFinite(audio.duration) || audio.duration <= 0 || !uvVerses.length) {
-        container.innerHTML = '';
-        return;
-      }
-      container.innerHTML = uvVerses.map(v => {
-        const frac = Math.min(1, Math.max(0, v.sec / audio.duration));
-        return `<div class="uv-seekbar-dot" data-frac="${frac}" style="top:${frac * 100}%"></div>`;
-      }).join('');
-    }
-    document.getElementById('srtPlayer').addEventListener('loadedmetadata', uvRenderSeekBarDots);
-
-    // אפקט הגדלה בהשראת ה-Dock של macOS - נקודות קרובות לאצבע/עכבר גדלות, דועך ריבועית עם המרחק,
-    // כדי שהנקודות יישארו קטנות ורגועות במנוחה אבל יתבדלו בבירור באזור המגע.
-    function uvSeekBarMagnify(clientY) {
-      const bar = document.getElementById('uvSeekBar');
-      const rect = bar.getBoundingClientRect();
-      const RADIUS = 28;      // px - טווח ההשפעה של הקרבה לאצבע/עכבר
-      const MAX_SCALE = 2.2;  // גודל מקסימלי של הנקודה הכי קרובה
-      for (const dot of document.getElementById('uvSeekBarDots').children) {
-        const dotY = rect.top + parseFloat(dot.dataset.frac) * rect.height;
-        const t = Math.max(0, 1 - Math.abs(clientY - dotY) / RADIUS);
-        dot.style.transform = `scale(${1 + (MAX_SCALE - 1) * t * t})`;
-      }
-    }
-    function uvSeekBarResetMagnify() {
-      for (const dot of document.getElementById('uvSeekBarDots').children) dot.style.transform = '';
-    }
-
     // הגרירה נצמדת תמיד לתחילת הפסוק הקרוב ביותר (לא לזמן רציף בתוך פסוק) - גם תוך כדי גרירה.
     // זמן 0 (לפני הפסוק הראשון, idx=-1) מתחרה כאופציה לגיטימית משלו - אחרת אי אפשר לגרור חזרה לשם.
     function uvSeekBarApply(frac) {
@@ -1872,10 +1819,8 @@
         uvSeekBarDragging = true;
         bar.setPointerCapture(e.pointerId);
         uvSeekBarApply(uvSeekBarFractionFromEvent(e));
-        uvSeekBarMagnify(e.clientY);
       });
       bar.addEventListener('pointermove', (e) => {
-        uvSeekBarMagnify(e.clientY); // גם ב-hover בלי לחיצה (עכבר) - לא רק תוך כדי גרירה
         if (!uvSeekBarDragging) return;
         uvSeekBarApply(uvSeekBarFractionFromEvent(e));
       });
@@ -1884,12 +1829,10 @@
       ['pointerup', 'pointercancel'].forEach(evt =>
         bar.addEventListener(evt, () => {
           uvSeekBarDragging = false;
-          uvSeekBarResetMagnify();
           if (uvCurrentIdx !== null && uvCurrentIdx >= 0 && uvRowEls[uvCurrentIdx]) {
             uvFlashPlayIcon(uvRowEls[uvCurrentIdx], '⏸');
           }
         }));
-      bar.addEventListener('pointerleave', uvSeekBarResetMagnify);
       // מונע מהמחוות לבעבע ל-listeners של swipe-ניווט/wheel שמאזינים על #userView כולו
       ['touchstart', 'touchmove', 'touchend', 'wheel'].forEach(evt =>
         bar.addEventListener(evt, (e) => e.stopPropagation(), { passive: evt !== 'wheel' }));
@@ -2009,17 +1952,22 @@
     // "פתוחה" ל"פס בולט" (peek), ובשחרור "קופצת" לאחד משני המצבים בלבד לפי המיקום האחרון - אין מצב
     // ביניים קבוע. לחיצה קצרה בלי גרירה משמעותית פשוט הופכת את המצב הנוכחי (כמו הכפתור/החץ הישנים).
     const DRAWER_PEEK_PX = 40; // חייב להתאים ל-calc(100% - 40px) ב-CSS של #commentaryDrawer.peek
+    // סף רגיש: כמה מהמרחק (0-1) מספיק למשוך כדי שהמגירה תיסגר/תיפתח, בכל כיוון בנפרד
+    const DRAWER_CLOSE_DRAG_RATIO = 0.2;
+    const DRAWER_OPEN_DRAG_RATIO = 0.2;
     let commentaryDrawerDragging = false;
     let commentaryDrawerDragStartY = 0;
     let commentaryDrawerDragStartOffset = 0;
     let commentaryDrawerDragOffset = 0;
     let commentaryDrawerDragMoved = false;
+    let commentaryDrawerDragStartedClosed = false;
     (function setupCommentaryDrawerHandle() {
       const handle = document.getElementById('commentaryDrawerHandle');
       const drawer = document.getElementById('commentaryDrawer');
       handle.addEventListener('pointerdown', (e) => {
         commentaryDrawerDragging = true;
         commentaryDrawerDragMoved = false;
+        commentaryDrawerDragStartedClosed = commentaryDrawerClosed;
         commentaryDrawerDragStartY = e.clientY;
         commentaryDrawerDragStartOffset = commentaryDrawerClosed ? drawer.getBoundingClientRect().height - DRAWER_PEEK_PX : 0;
         commentaryDrawerDragOffset = commentaryDrawerDragStartOffset;
@@ -2040,8 +1988,16 @@
         drawer.style.transition = '';
         drawer.style.transform = '';
         const maxOffset = drawer.getBoundingClientRect().height - DRAWER_PEEK_PX;
-        // בלי גרירה משמעותית - לחיצה פשוטה הופכת את המצב; עם גרירה - המיקום האחרון קובע
-        const shouldClose = commentaryDrawerDragMoved ? (commentaryDrawerDragOffset > maxOffset / 2) : !commentaryDrawerClosed;
+        // בלי גרירה משמעותית - לחיצה פשוטה הופכת את המצב; עם גרירה - סף נמוך ורגיש, שונה לכל כיוון
+        // (התחלה מפתוח דורשת רק DRAWER_CLOSE_DRAG_RATIO כדי לסגור; התחלה מסגור דורשת רק DRAWER_OPEN_DRAG_RATIO כדי לפתוח)
+        let shouldClose;
+        if (!commentaryDrawerDragMoved) {
+          shouldClose = !commentaryDrawerClosed;
+        } else if (commentaryDrawerDragStartedClosed) {
+          shouldClose = commentaryDrawerDragOffset > maxOffset * (1 - DRAWER_OPEN_DRAG_RATIO);
+        } else {
+          shouldClose = commentaryDrawerDragOffset > maxOffset * DRAWER_CLOSE_DRAG_RATIO;
+        }
         if (shouldClose && !commentaryDrawerClosed) hideCommentaryDrawer();
         else if (!shouldClose && commentaryDrawerClosed) showCommentaryDrawerBack();
       }));
@@ -2114,8 +2070,8 @@
         // לחיצה על הפסוק הנוכחי (לא פסוק אחר) - רק toggle לניגון, בלי seek
         if (audio.paused) { audio.play().catch(() => {}); uvFlashPlayIcon(row, '▶'); }
         else { audio.pause(); uvFlashPlayIcon(row, '⏸'); }
-      } else if (!audio.paused) {
-        // מתנגן כרגע - לחיצה על פסוק אחר רק עוצרת, לא עוברת אליו (למניעת seek בטעות תוך כדי האזנה)
+      } else if (!audio.paused && uvCurrentIdx !== -1) {
+        // מתנגן כרגע ויש פסוק נוכחי אמיתי - לחיצה על פסוק אחר רק עוצרת, לא עוברת אליו (למניעת seek בטעות תוך כדי האזנה)
         audio.pause();
         if (uvCurrentIdx !== null && uvCurrentIdx >= 0 && uvRowEls[uvCurrentIdx]) {
           uvFlashPlayIcon(uvRowEls[uvCurrentIdx], '⏸');
@@ -2135,11 +2091,12 @@
       setTimeout(() => { uvGestureCooldown = false; }, 500);
     }
 
+    // גלילה (wheel/swipe) על הפסוקים בוטלה במכוון - הניווט היחיד הוא לחיצה על פסוק (או גרירה/לחיצה על uvSeekBar).
+    // ה-preventDefault נשאר כדי שגלילה/מגע בתוך #userView לא "יזלגו" לגלילת הדף שמתחת (הוא position:fixed מלא-מסך).
     const userViewEl = document.getElementById('userView');
     userViewEl.addEventListener('wheel', (e) => {
       if (!userViewActive) return;
       e.preventDefault();
-      uvNavigate(e.deltaY > 0 ? 1 : -1);
     }, { passive: false });
 
     userViewEl.addEventListener('touchstart', (e) => {
@@ -2154,11 +2111,7 @@
 
     userViewEl.addEventListener('touchend', (e) => {
       if (!userViewActive || uvTouchStartY === null) return;
-      const deltaY = uvTouchStartY - e.changedTouches[0].clientY;
       uvTouchStartY = null;
-      const SWIPE_THRESHOLD = 40;
-      if (Math.abs(deltaY) < SWIPE_THRESHOLD) return;
-      uvNavigate(deltaY > 0 ? 1 : -1);
     });
 
     document.addEventListener('keydown', (e) => {
