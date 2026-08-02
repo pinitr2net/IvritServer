@@ -328,10 +328,12 @@
       color: #fff;
       cursor: pointer;
     }
-    /* חזרה ל-position:fixed (שכבה מעל, לא בזרימה של #userView) - גובה קבוע כדי שטקסט הפסוק
-       מאחורי המגירה לא יזוז/ייצמד מחדש כשהיא נפתחת. בלי מיסוך - עדיין אפשר ללחוץ על פסוק אחר
-       מתחת למגירה (השטח שמעליה נשאר חופשי לגמרי). #commentaryDrawer עצמו הוא אח של #userView,
-       לא בתוכו - כך שגלגול/מגע בתוך המגירה לא "דולף" למאזיני ה-wheel/touch שרשומים על #userView. */
+    /* position:fixed (שכבה מעל, לא בזרימה של #userView) - כך שפתיחת/סגירת המגירה לא גורמת
+       ל-#userView עצמו לעבור reflow של layout; הזזת הפסוקים למעלה כשהמגירה נפתחת (ראו uvPositionTrack,
+       uvGetDrawerCoverPx) היא הזזת transform יזומה ב-JS, לא תוצאה של שינוי גובה/מיקום ב-CSS.
+       בלי מיסוך - עדיין אפשר ללחוץ על פסוק אחר מתחת למגירה (השטח שמעליה נשאר חופשי לגמרי).
+       #commentaryDrawer עצמו הוא אח של #userView, לא בתוכו - כך שגלגול/מגע בתוך המגירה לא
+       "דולף" למאזיני ה-wheel/touch שרשומים על #userView. */
     #commentaryDrawer {
       position: fixed;
       left: 0;
@@ -339,22 +341,19 @@
       bottom: 0;
       z-index: 500;
       background: #fff;
-      border-radius: 16px 16px 0 0;
-      box-shadow: 0 -4px 24px rgba(0,0,0,0.3);
+      border: 1px solid #e2e8f0;
+      border-bottom: none;
       height: 40vh;
       display: flex;
       flex-direction: column;
       transform: translateY(100%);
-      transition: transform 0.3s ease, height 0.3s ease, border-radius 0.3s ease;
+      transition: transform 0.3s ease;
       direction: rtl;
       padding: 0.75rem 1.25rem 1.25rem;
       box-sizing: border-box;
       pointer-events: none;
     }
     #commentaryDrawer.open { transform: translateY(0); pointer-events: auto; }
-    #commentaryDrawer.open.drawer-low { height: 20vh; }
-    #commentaryDrawer.open.drawer-normal { height: 40vh; }
-    #commentaryDrawer.open.drawer-large { height: 80vh; }
     #commentaryDrawerHeader {
       display: flex;
       align-items: center;
@@ -362,43 +361,6 @@
       flex-shrink: 0;
     }
     #commentaryDrawerActions { display: flex; align-items: center; gap: 0.1rem; }
-    #commentaryDrawerSizeBtn {
-      border: none;
-      background: none;
-      font-size: 1.15rem;
-      color: #64748b;
-      cursor: pointer;
-      padding: 0.25rem 0.5rem;
-      line-height: 1;
-    }
-    /* מוצג רק במצב הגדול ביותר - פסוק קודם/בא (לחיצים) ומד התקדמות לפסוק הנוכחי, כמו בקרוסלה הראשית */
-    .commentary-nav-verse {
-      display: none;
-      flex-shrink: 0;
-      padding: 0.3rem 0;
-      font-size: 0.9rem;
-      color: #94a3b8;
-      cursor: pointer;
-    }
-    .commentary-nav-verse:hover { color: #64748b; }
-    #commentaryDrawer.drawer-large .commentary-nav-verse { display: block; }
-    #commentaryDrawerMeter {
-      display: none;
-      flex-shrink: 0;
-      height: 3px;
-      border-radius: 2px;
-      background: rgba(0,0,0,0.08);
-      overflow: hidden;
-      margin: 0.3rem 0 0.6rem;
-    }
-    #commentaryDrawer.drawer-large #commentaryDrawerMeter { display: block; }
-    #commentaryDrawerMeterFill {
-      width: 100%;
-      height: 100%;
-      background: #f5a623;
-      transform-origin: right center;
-      transform: scaleX(0);
-    }
     #commentaryDrawerSelector { position: relative; }
     .commentary-tab {
       padding: 0.35rem 0.9rem;
@@ -473,7 +435,7 @@
       justify-content: center;
       padding: 0px;
       box-sizing: border-box;
-      font-size: 1.05rem;
+      font-size: 1.20rem;
       font-weight: 600;
       color: #334155;
       text-align: center;
@@ -523,6 +485,14 @@
       overflow: hidden;
       box-sizing: border-box;
     }
+    /* עוטף את uvTrack ומזיז אותו למעלה כשמגירת הפירוש נפתחת (ראו uvPositionTrack) - בלי transition
+       משלו, כי הוא מתעדכן כל פריים ישירות לפי המיקום האמיתי (getBoundingClientRect) של המגירה
+       המונפשת; אילו הייתה כאן גם transition, ה-uvTrack (שיש לו transition משלו לצעדי פסוקים) היה
+       "רודף" אחרי יעד שכל הזמן זז, וזה נראה כמו פיגור אחרי המגירה במקום תזוזה יחד איתה. */
+    #uvDrawerShift {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+    }
     #uvTrack {
       position: absolute;
       top: 0; left: 0; right: 0;
@@ -571,7 +541,7 @@
     .uv-verse-num {
       flex: 0 0 var(--uv-num-slot);
       text-align: right;
-      font-size: 0.8rem;
+      font-size: 1.3rem;
       color: #999;
       pointer-events: none;
       user-select: none;
@@ -640,7 +610,7 @@
       font-size: 0.7rem;
       line-height: 1;
       color: #f5a623;
-      display: none;
+      display: none !important;
       pointer-events: none;
       user-select: none;
     }
@@ -789,14 +759,10 @@
         <div id="commentaryDrawerCommentatorList"></div>
       </div>
       <div id="commentaryDrawerActions">
-        <button id="commentaryDrawerSizeBtn" onclick="cycleCommentaryDrawerSize()" aria-label="גודל המגירה">▄</button>
         <button id="commentaryDrawerClose" onclick="hideCommentaryDrawer()" aria-label="סגור">✕</button>
       </div>
     </div>
-    <div id="commentaryDrawerPrevVerse" class="commentary-nav-verse"></div>
     <div id="commentaryDrawerRef"></div>
-    <div id="commentaryDrawerMeter"><div id="commentaryDrawerMeterFill"></div></div>
-    <div id="commentaryDrawerNextVerse" class="commentary-nav-verse"></div>
     <div id="commentaryDrawerBody"></div>
   </div>
   <button id="commentaryDrawerReopenBtn" onclick="showCommentaryDrawerBack()" aria-label="פתח מגירת פירוש" style="display:none;">▲</button>
@@ -1514,9 +1480,8 @@
         uvCurrentChapterNum = null;
         uvUpdateStickyChapter(uvCurrentIdx);
       }
-      // מגירת הפירוש מאותחלת כאן לפסוק הראשון, בגודל ובמצב פתוח/סגור שנשמרו מה-session הקודם
+      // מגירת הפירוש מאותחלת כאן לפסוק הראשון, במצב פתוח/סגור שנשמר מה-session הקודם
       if (uvVerses.length) {
-        setDrawerSize(commentaryDrawerSize);
         updateCommentaryDrawerForVerse(uvVerses[0]);
         if (commentaryDrawerClosed) {
           document.getElementById('commentaryDrawer').classList.remove('open');
@@ -1542,13 +1507,22 @@
     }
 
     const UV_ANCHOR_RATIO = 0.35; // חלק מגובה ה-viewport שבו "יושבת" השורה הפעילה (0.5 = מרכז מדויק)
+    // כמה מתחתית ה-viewport מכוסה כרגע ע"י מגירת הפירוש (px) - נמדד לפי המיקום האמיתי על המסך
+    // (getBoundingClientRect, לא לפי class), כך שהעוגן זז בהדרגה גם באמצע אנימציית הפתיחה/סגירה
+    function uvGetDrawerCoverPx(viewportRect) {
+      const drawerRect = document.getElementById('commentaryDrawer').getBoundingClientRect();
+      return Math.max(0, viewportRect.bottom - drawerRect.top);
+    }
     function uvPositionTrack() {
       if (!uvRowCenters.length) return;
       const track = document.getElementById('uvTrack');
       const viewport = document.getElementById('userViewVerses');
       const idx = (uvCurrentIdx === null || uvCurrentIdx < 0) ? 0 : uvCurrentIdx;
       const rowCenter = uvRowCenters[idx] != null ? uvRowCenters[idx] : 0;
-      let centerY = viewport.clientHeight * UV_ANCHOR_RATIO;
+      const drawerCoverPx = uvGetDrawerCoverPx(viewport.getBoundingClientRect());
+      // ככל שהמגירה "עולה" יותר (מכסה יותר מתחתית המסך), העוגן עולה איתה, כדי שהפסוק הפעיל
+      // ישמור על אותו מיקום יחסי בתוך השטח שבאמת נשאר גלוי מעל המגירה
+      let centerY = (viewport.clientHeight - drawerCoverPx) * UV_ANCHOR_RATIO;
       if (sequenceMode) {
         // אין להשאיר רווח ריק מעל אם אין מספיק פסוקים קודמים למלא אותו (למשל בתחילת השיעור) -
         // העוגן מוגבל לגובה התוכן שבאמת קיים מעל, לא לגובה קבוע
@@ -1649,9 +1623,6 @@
         const fill = uvRowEls[uvMeterRowIdx].querySelector('.uv-meter-fill');
         if (fill) fill.style.transform = `scaleX(${progress})`;
       }
-      // מד ההתקדמות בתוך מגירת הפירוש (מוצג רק במצב הגדול ביותר, אבל מעודכן תמיד - זול)
-      const drawerFill = document.getElementById('commentaryDrawerMeterFill');
-      if (drawerFill) drawerFill.style.transform = `scaleX(${progress})`;
     }
     function startUvMeterLoop() {
       if (uvMeterRaf !== null) return;
@@ -1664,9 +1635,44 @@
         const fill = uvRowEls[uvMeterRowIdx].querySelector('.uv-meter-fill');
         if (fill) fill.style.transform = 'scaleX(0)';
       }
-      const drawerFill = document.getElementById('commentaryDrawerMeterFill');
-      if (drawerFill) drawerFill.style.transform = 'scaleX(0)';
     }
+
+    // גרירה/לחיצה על המד הקטן בתוך השורה הפעילה - מזיזה את הניגון בתוך גבולות הפסוק הנוכחי בלבד
+    // (בניגוד לפס הגרירה האנכי, לא קופצת לפסוק אחר). .uv-meter-fill מתמלא מימין לשמאל
+    // (transform-origin: right ב-CSS) לכן זמן 0 בפסוק הוא הקצה הימני של האלמנט, לא השמאלי.
+    let uvMeterDragging = false;
+    function uvMeterFractionFromEvent(e, meterEl) {
+      const rect = meterEl.getBoundingClientRect();
+      return Math.min(1, Math.max(0, (rect.right - e.clientX) / rect.width));
+    }
+    function uvMeterApplyDrag(e, meterEl) {
+      const audio = document.getElementById('srtPlayer');
+      const cur = (uvCurrentIdx !== null && uvCurrentIdx >= 0) ? uvVerses[uvCurrentIdx] : null;
+      const startSec = cur ? cur.sec : 0;
+      const next = cur ? uvVerses[uvCurrentIdx + 1] : uvVerses[0];
+      const endSec = next ? next.sec : (isFinite(audio.duration) ? audio.duration : null);
+      if (endSec === null || endSec <= startSec) return;
+      audio.currentTime = startSec + uvMeterFractionFromEvent(e, meterEl) * (endSec - startSec);
+    }
+    const uvTrackEl = document.getElementById('uvTrack');
+    uvTrackEl.addEventListener('pointerdown', (e) => {
+      const meterEl = e.target.closest('.uv-meter');
+      if (!meterEl) return;
+      e.stopPropagation(); // לא גם toggle play/pause של השורה - ראו בדיקת .uv-meter במאזין ה-click למטה
+      uvMeterDragging = true;
+      meterEl.setPointerCapture(e.pointerId);
+      uvMeterApplyDrag(e, meterEl);
+    });
+    uvTrackEl.addEventListener('pointermove', (e) => {
+      if (!uvMeterDragging) return;
+      const meterEl = e.target.closest('.uv-meter');
+      if (!meterEl) return;
+      uvMeterApplyDrag(e, meterEl);
+    });
+    ['pointerup', 'pointercancel'].forEach(evt => uvTrackEl.addEventListener(evt, () => { uvMeterDragging = false; }));
+    // מונע מהמחוות לבעבע ל-listeners של swipe-ניווט/wheel שמאזינים על #userView כולו
+    ['touchstart', 'touchmove', 'touchend', 'wheel'].forEach(evt =>
+      uvTrackEl.addEventListener(evt, (e) => { if (e.target.closest('.uv-meter')) e.stopPropagation(); }, { passive: evt !== 'wheel' }));
 
     const UV_PAUSE_AFTER_VERSE_START_SEC = 0.3;
     let uvPauseWatchRaf = null;
@@ -1860,20 +1866,11 @@
     function renderCommentaryDrawer() {
       const v = commentaryDrawerVerse;
       if (!v) return;
-      const large = commentaryDrawerSize === 'large';
       const refEl = document.getElementById('commentaryDrawerRef');
       const bodyEl = document.getElementById('commentaryDrawerBody');
       const btnEl = document.getElementById('commentaryDrawerCommentatorBtn');
-      // במצב הגדול ביותר מציגים את הפסוק המלא, לא תקציר
-      refEl.textContent = large ? v.text : truncatePreview(v.text);
+      refEl.textContent = truncatePreview(v.text);
       btnEl.textContent = `${commentatorLabels.get(commentaryDrawerCommentator) || commentaryDrawerCommentator} ▾`;
-
-      // פסוק קודם/בא (מוצגים רק במצב הגדול, ראו CSS) - מאפשרים ניווט ישיר מתוך המגירה
-      const idx = uvVerses.indexOf(v);
-      const prev = idx > 0 ? uvVerses[idx - 1] : null;
-      const next = (idx !== -1 && idx < uvVerses.length - 1) ? uvVerses[idx + 1] : null;
-      document.getElementById('commentaryDrawerPrevVerse').textContent = prev ? truncatePreview(prev.text) : '';
-      document.getElementById('commentaryDrawerNextVerse').textContent = next ? truncatePreview(next.text) : '';
 
       const data = resolvedCommentaryChapters.get(`${v.book}|${v.chapterNum}|${commentaryDrawerCommentator}`);
       if (!data) {
@@ -1887,26 +1884,9 @@
       document.getElementById('commentaryDrawerCommentatorList').classList.remove('open');
     }
 
-    const DRAWER_SIZES = ['low', 'normal', 'large']; // 20vh / 40vh / 80vh
-    const DRAWER_SIZE_ICONS = { low: '▁', normal: '▄', large: '█' };
-    // גודל ומצב פתוח/סגור נשמרים ב-sessionStorage (לא localStorage - כרגע מבוטל לגמרי, ראו למעלה)
-    // ונשרדים ריפרש של הטאב, כמו commentaryDrawerCommentator הקיים.
-    let commentaryDrawerSize = DRAWER_SIZES.includes(sessionStorage.getItem('commentaryDrawerSize'))
-      ? sessionStorage.getItem('commentaryDrawerSize') : 'low';
+    // מצב פתוח/סגור נשמר ב-sessionStorage (לא localStorage - כרגע מבוטל לגמרי, ראו למעלה)
+    // ושורד ריפרש של הטאב, כמו commentaryDrawerCommentator הקיים.
     let commentaryDrawerClosed = sessionStorage.getItem('commentaryDrawerClosed') === '1';
-
-    function setDrawerSize(size) {
-      commentaryDrawerSize = size;
-      sessionStorage.setItem('commentaryDrawerSize', size);
-      const drawerEl = document.getElementById('commentaryDrawer');
-      DRAWER_SIZES.forEach(s => drawerEl.classList.toggle(`drawer-${s}`, s === size));
-      document.getElementById('commentaryDrawerSizeBtn').textContent = DRAWER_SIZE_ICONS[size];
-      renderCommentaryDrawer();
-    }
-
-    function cycleCommentaryDrawerSize() {
-      setDrawerSize(DRAWER_SIZES[(DRAWER_SIZES.indexOf(commentaryDrawerSize) + 1) % DRAWER_SIZES.length]);
-    }
 
     // מעדכן את התוכן בלבד - לכל מעבר פסוק (לחיצה, גלילה/מקלדת, או התקדמות טבעית של הניגון) -
     // המגירה מוצגת תמיד כל עוד תצוגת המשתמש פעילה, אין יותר מצב "סגור" נפרד מ"גודל קטן"
@@ -1916,7 +1896,7 @@
       loadCommentaryForDrawer(v, commentaryDrawerCommentator);
     }
 
-    // כפתור ה-✕ מעלים את המגירה לגמרי (גודל האחרון נשאר שמור), ומשאיר רק חץ קטן לפתיחה חזרה
+    // כפתור ה-✕ מעלים את המגירה לגמרי, ומשאיר רק חץ קטן לפתיחה חזרה
     function hideCommentaryDrawer() {
       closeCommentaryList();
       commentaryDrawerClosed = true;
@@ -1925,7 +1905,7 @@
       document.getElementById('commentaryDrawerReopenBtn').style.display = 'flex';
     }
 
-    // החץ הקטן מחזיר את המגירה למצב (גודל) האחרון שהיא הייתה בו לפני הסגירה
+    // החץ הקטן מחזיר את המגירה לפתוחה
     function showCommentaryDrawerBack() {
       commentaryDrawerClosed = false;
       sessionStorage.setItem('commentaryDrawerClosed', '0');
@@ -1980,22 +1960,13 @@
       const audio = document.getElementById('srtPlayer');
       if (audio.paused) audio.play().catch(() => {}); else audio.pause();
     });
-    // פסוק קודם/בא בתוך המגירה - לחיצה גורמת לו להיות הנוכחי, בלי לגעת במצב הניגון
-    document.getElementById('commentaryDrawerPrevVerse').addEventListener('click', () => {
-      const idx = uvVerses.indexOf(commentaryDrawerVerse);
-      if (idx > 0) uvSeekTo(idx - 1);
-    });
-    document.getElementById('commentaryDrawerNextVerse').addEventListener('click', () => {
-      const idx = uvVerses.indexOf(commentaryDrawerVerse);
-      if (idx !== -1 && idx < uvVerses.length - 1) uvSeekTo(idx + 1);
-    });
-
     document.getElementById('uvBigPlayBtn').addEventListener('click', () => {
       const audio = document.getElementById('srtPlayer');
       if (audio.paused) audio.play().catch(() => {}); else audio.pause();
     });
 
     document.getElementById('uvTrack').addEventListener('click', (e) => {
+      if (e.target.closest('.uv-meter')) return; // כבר טופל ב-pointerdown/pointermove של גרירת המד - לא גם toggle play/pause
       const row = e.target.closest('.uv-row');
       if (!row) return;
       if (linkerMode) return; // הפסוק הוא לינק אמיתי לספריא - נותנים לניווט הדפדפן הרגיל לקרות
