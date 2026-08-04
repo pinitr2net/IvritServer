@@ -522,6 +522,12 @@
       overflow: hidden;
       box-sizing: border-box;
       touch-action: none;
+      /* בלי זה, גרירה על טקסט הפסוק (לא רק על פס האחיזה, שאין בו טקסט בכלל) מתחרה ב-iOS Safari
+         במחוות בחירת-טקסט המובנית (הדגשה/זכוכית מגדילה/תפריט העתקה) - מרגיש "שבור" לעומת גרירה מהידית. */
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
     }
     /* עוטף את uvTrack ומזיז אותו למעלה כשמגירת הפירוש נפתחת (ראו uvPositionTrack) - בלי transition
        משלו, כי הוא מתעדכן כל פריים ישירות לפי המיקום האמיתי (getBoundingClientRect) של המגירה
