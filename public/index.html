@@ -390,6 +390,10 @@
       display: flex;
       align-items: center;
       z-index: 2;
+      /* בלי זה, גרירה שמתחילה בדיוק כאן (בורר הפרשן) הייתה מתפרשת ע"י iOS כניסיון לגלול/למתוח
+         (rubber-band) אזור טבעי - נראה כמו "הגענו לסוף הגלילה" ומתחרה בגרירת המגירה שלנו (JS),
+         שממילא ממתינה ל-touch-action:none כדי לקבל בלעדיות על המחווה. */
+      touch-action: none;
     }
     /* כמו commentaryDrawerHeader (position:absolute יחסית ל-#commentaryDrawer, גלוי גם ב-peek) אבל
        בצד השני - נראה כמו .uv-big-play-btn (עיגול כתום) ומתנהג כמוהו (toggle play/pause), אבל
@@ -412,6 +416,7 @@
       cursor: pointer;
       z-index: 2;
       padding: 0;
+      touch-action: none; /* אותה סיבה כמו #commentaryDrawerHeader למעלה */
     }
     #commentaryDrawerSelector { position: relative; }
     .commentary-tab {
@@ -2165,8 +2170,16 @@
     // הסיבה לכך שבאייפון גרירה "מהמגירה עצמה" הרגישה לא אמינה (לפעמים האצבע פשוט לא נחתה בדיוק
     // על 44x6 הפיקסלים של האחיזה). #commentaryDrawerBody ו-#commentaryDrawerCommentatorList מוחרגים
     // כי הם צריכים גלילה טבעית משלהם (טקסט פירוש ארוך / רשימת פרשנים ארוכה).
-    setupDrawerDragSurface(document.getElementById('commentaryDrawer'), false,
-      ['#commentaryDrawerHandle', '#commentaryDrawerBody', '#commentaryDrawerCommentatorList']);
+    const DRAWER_SCROLLABLE_SELECTORS = ['#commentaryDrawerHandle', '#commentaryDrawerBody', '#commentaryDrawerCommentatorList'];
+    setupDrawerDragSurface(document.getElementById('commentaryDrawer'), false, DRAWER_SCROLLABLE_SELECTORS);
+    // #commentaryDrawer הוא אח של #userView (ראו למעלה) - חסימת ה-touchmove הקיימת על #userView
+    // (שמונעת מ-iOS "לגלוש" למחוות גלילה/מתיחה טבעית של הדף) לעולם לא חלה על המגירה, כי זה עץ DOM
+    // נפרד לגמרי. בלי זה, גרירה שמתחילה על שטח המגירה עצמה (לא הידית, לא הפירוש/רשימת הפרשנים) הייתה
+    // לפעמים "נבלעת" ע"י מחוות rubber-band טבעית של iOS במקום ע"י הגרירה שלנו (JS).
+    document.getElementById('commentaryDrawer').addEventListener('touchmove', (e) => {
+      if (DRAWER_SCROLLABLE_SELECTORS.some((sel) => e.target.closest(sel))) return;
+      e.preventDefault();
+    }, { passive: false });
 
     document.getElementById('commentaryDrawerCommentatorBtn').addEventListener('click', async (e) => {
       e.stopPropagation();
