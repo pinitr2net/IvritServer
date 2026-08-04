@@ -480,6 +480,7 @@
       position: relative;
       overflow: hidden;
       box-sizing: border-box;
+      touch-action: none;
     }
     /* עוטף את uvTrack ומזיז אותו למעלה כשמגירת הפירוש נפתחת (ראו uvPositionTrack) - בלי transition
        משלו, כי הוא מתעדכן כל פריים ישירות לפי המיקום האמיתי (getBoundingClientRect) של המגירה
@@ -1967,20 +1968,28 @@
     let commentaryDrawerDragOffset = 0;
     let commentaryDrawerDragMoved = false;
     let commentaryDrawerDragStartedClosed = false;
-    (function setupCommentaryDrawerHandle() {
-      const handle = document.getElementById('commentaryDrawerHandle');
+    // אם הגרירה הנוכחית מותר לה גם "לחיצה קצרה בלי תזוזה = toggle" (רק פס האחיזה עצמו) - ראו setupDrawerDragSurface.
+    let commentaryDrawerDragAllowTapToggle = true;
+    // דגל: הגרירה האחרונה הייתה משמעותית ולא מקורה בפס האחיזה - ה-click הבא (ניווט פסוק/play-pause)
+    // שנופל על אותו מקום (mouseup) צריך להתעלם ממנו, בדיוק כמו uvMeterJustDragged למעלה.
+    let commentaryDrawerJustDragged = false;
+
+    // גורם משותף לגרירת המגירה - נקרא גם מפס האחיזה (עם toggle-בלחיצה) וגם מאזור הפסוקים
+    // (בלי toggle-בלחיצה, כדי לא לפגוע בלחיצה רגילה על פסוק/כפתור הניגון - רק גרירה משמעותית שם נחשבת).
+    function setupDrawerDragSurface(el, allowTapToggle) {
       const drawer = document.getElementById('commentaryDrawer');
-      handle.addEventListener('pointerdown', (e) => {
+      el.addEventListener('pointerdown', (e) => {
         commentaryDrawerDragging = true;
         commentaryDrawerDragMoved = false;
+        commentaryDrawerDragAllowTapToggle = allowTapToggle;
         commentaryDrawerDragStartedClosed = commentaryDrawerClosed;
         commentaryDrawerDragStartY = e.clientY;
         commentaryDrawerDragStartOffset = commentaryDrawerClosed ? drawer.getBoundingClientRect().height - DRAWER_PEEK_PX : 0;
         commentaryDrawerDragOffset = commentaryDrawerDragStartOffset;
-        handle.setPointerCapture(e.pointerId);
+        el.setPointerCapture(e.pointerId);
         drawer.style.transition = 'none';
       });
-      handle.addEventListener('pointermove', (e) => {
+      el.addEventListener('pointermove', (e) => {
         if (!commentaryDrawerDragging) return;
         const delta = e.clientY - commentaryDrawerDragStartY;
         if (Math.abs(delta) > 5) commentaryDrawerDragMoved = true;
@@ -1988,26 +1997,34 @@
         commentaryDrawerDragOffset = Math.min(maxOffset, Math.max(0, commentaryDrawerDragStartOffset + delta));
         drawer.style.transform = `translateY(${commentaryDrawerDragOffset}px)`;
       });
-      ['pointerup', 'pointercancel'].forEach(evt => handle.addEventListener(evt, () => {
+      ['pointerup', 'pointercancel'].forEach(evt => el.addEventListener(evt, () => {
         if (!commentaryDrawerDragging) return;
         commentaryDrawerDragging = false;
         drawer.style.transition = '';
         drawer.style.transform = '';
         const maxOffset = drawer.getBoundingClientRect().height - DRAWER_PEEK_PX;
-        // בלי גרירה משמעותית - לחיצה פשוטה הופכת את המצב; עם גרירה - סף נמוך ורגיש, שונה לכל כיוון
+        // בלי גרירה משמעותית - לחיצה פשוטה הופכת את המצב (רק אם allowTapToggle, כלומר פס האחיזה);
+        // עם גרירה - סף נמוך ורגיש, שונה לכל כיוון
         // (התחלה מפתוח דורשת רק DRAWER_CLOSE_DRAG_RATIO כדי לסגור; התחלה מסגור דורשת רק DRAWER_OPEN_DRAG_RATIO כדי לפתוח)
         let shouldClose;
         if (!commentaryDrawerDragMoved) {
+          if (!commentaryDrawerDragAllowTapToggle) return; // לחיצה רגילה באזור הפסוקים - לא נוגעים במגירה
           shouldClose = !commentaryDrawerClosed;
         } else if (commentaryDrawerDragStartedClosed) {
           shouldClose = commentaryDrawerDragOffset > maxOffset * (1 - DRAWER_OPEN_DRAG_RATIO);
         } else {
           shouldClose = commentaryDrawerDragOffset > maxOffset * DRAWER_CLOSE_DRAG_RATIO;
         }
+        if (commentaryDrawerDragMoved && !allowTapToggle) {
+          commentaryDrawerJustDragged = true;
+          setTimeout(() => { commentaryDrawerJustDragged = false; }, 350);
+        }
         if (shouldClose && !commentaryDrawerClosed) hideCommentaryDrawer();
         else if (!shouldClose && commentaryDrawerClosed) showCommentaryDrawerBack();
       }));
-    })();
+    }
+    setupDrawerDragSurface(document.getElementById('commentaryDrawerHandle'), true);
+    setupDrawerDragSurface(document.getElementById('userViewVerses'), false);
 
     document.getElementById('commentaryDrawerCommentatorBtn').addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -2057,6 +2074,8 @@
       if (audio.paused) audio.play().catch(() => {}); else audio.pause();
     });
     document.getElementById('uvBigPlayBtn').addEventListener('click', () => {
+      // כנ"ל - גרירה משמעותית של המגירה מאזור הפסוקים (ראו commentaryDrawerJustDragged למעלה) לא אמורה גם לטגל ניגון
+      if (commentaryDrawerJustDragged) { commentaryDrawerJustDragged = false; return; }
       const audio = document.getElementById('srtPlayer');
       if (audio.paused) audio.play().catch(() => {}); else audio.pause();
     });
@@ -2065,6 +2084,8 @@
       // ה-click הראשון אחרי שחרור גרירת המד מדולג תמיד - גם אם היעד בפועל (mouseup) נפל מחוץ למד,
       // על שורה אחרת (ראו הערה ליד uvMeterJustDragged למעלה) - אחרת השורה הזאת "נתפסת" בטעות כלחיצה עליה.
       if (uvMeterJustDragged) { uvMeterJustDragged = false; return; }
+      // גרירה משמעותית של המגירה מאזור הפסוקים (ראו setupDrawerDragSurface למעלה) - לא גם ניווט/toggle לפסוק שנפל תחת האצבע בשחרור
+      if (commentaryDrawerJustDragged) { commentaryDrawerJustDragged = false; return; }
       if (e.target.closest('.uv-meter')) return; // כבר טופל ב-pointerdown/pointermove של גרירת המד - לא גם toggle play/pause
       const row = e.target.closest('.uv-row');
       if (!row) return;
