@@ -2064,6 +2064,11 @@
     let commentaryDrawerDragOffset = 0;
     let commentaryDrawerDragMoved = false;
     let commentaryDrawerDragStartedClosed = false;
+    // נמדד פעם אחת ב-pointerdown ולא בכל pointermove/pointerup - ב-iOS Safari גובה ה-40vh של המגירה
+    // עצמו יכול לזוז באמצע מחווה (סרגל הכלים הדינמי מתכווץ/מתרחב תוך כדי גרירה), וקריאה חוזרת ל-
+    // getBoundingClientRect() באמצע התזוזה גרמה לכך שהגרירה "התחילה לזוז ואז קפצה חזרה" בשחרור -
+    // הסף (20%) נמדד מול maxOffset שהשתנה תחת האצבע, לא מול המרחק שבאמת נגרר.
+    let commentaryDrawerDragMaxOffset = 0;
     // אם הגרירה הנוכחית מותר לה גם "לחיצה קצרה בלי תזוזה = toggle" (רק פס האחיזה עצמו) - ראו setupDrawerDragSurface.
     let commentaryDrawerDragAllowTapToggle = true;
     // דגל: הגרירה האחרונה הייתה משמעותית ולא מקורה בפס האחיזה - ה-click הבא (ניווט פסוק/play-pause)
@@ -2088,7 +2093,7 @@
         drawer.style.transition = 'none';
       }
       if (!commentaryDrawerDragMoved) return; // עוד בתוך סף הטאפ - לא מזיזים את המגירה עדיין
-      const maxOffset = drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer);
+      const maxOffset = commentaryDrawerDragMaxOffset;
       commentaryDrawerDragOffset = Math.min(maxOffset, Math.max(0, commentaryDrawerDragStartOffset + delta));
       drawer.style.transform = `translateY(${commentaryDrawerDragOffset}px)`;
     }
@@ -2101,7 +2106,7 @@
       const drawer = document.getElementById('commentaryDrawer');
       drawer.style.transition = '';
       drawer.style.transform = '';
-      const maxOffset = drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer);
+      const maxOffset = commentaryDrawerDragMaxOffset;
       // בלי גרירה משמעותית - לחיצה פשוטה הופכת את המצב (רק אם commentaryDrawerDragAllowTapToggle,
       // כלומר פס האחיזה); עם גרירה - סף נמוך ורגיש, שונה לכל כיוון (התחלה מפתוח דורשת רק
       // DRAWER_CLOSE_DRAG_RATIO כדי לסגור; התחלה מסגור דורשת רק DRAWER_OPEN_DRAG_RATIO כדי לפתוח)
@@ -2131,13 +2136,24 @@
       const drawer = document.getElementById('commentaryDrawer');
       el.addEventListener('pointerdown', (e) => {
         if (excludeSelectors && excludeSelectors.some((sel) => e.target.closest(sel))) return;
-        if (commentaryDrawerDragging) return; // גרירה כבר פעילה (למשל ריבוי-מגע) - לא להתחיל עוד אחת
+        if (commentaryDrawerDragging) {
+          // גרירה קודמת "תקועה" (pointerup/pointercancel שלה לא הגיע - נדיר אך קורה ב-iOS כשמחווה
+          // מערכתית חוטפת את המגע) הייתה נועלת את הגרירה לצמיתות בלי זה - כל נגיעה חדשה הייתה
+          // מדולגת בשקט (commentaryDrawerDragging נשאר true), מרגיש כאילו "אין תזוזה בכלל".
+          // נגיעה חדשה מנקה את הישנה ומתחילה גרירה נקייה, בלי להפעיל לוגיקת סגירה/פתיחה על הישנה.
+          document.removeEventListener('pointermove', commentaryDrawerDragMoveHandler);
+          document.removeEventListener('pointerup', commentaryDrawerDragEndHandler);
+          document.removeEventListener('pointercancel', commentaryDrawerDragEndHandler);
+          drawer.style.transition = '';
+          drawer.style.transform = '';
+        }
         commentaryDrawerDragging = true;
         commentaryDrawerDragMoved = false;
         commentaryDrawerDragAllowTapToggle = allowTapToggle;
         commentaryDrawerDragStartedClosed = commentaryDrawerClosed;
         commentaryDrawerDragStartY = e.clientY;
-        commentaryDrawerDragStartOffset = commentaryDrawerClosed ? drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer) : 0;
+        commentaryDrawerDragMaxOffset = drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer);
+        commentaryDrawerDragStartOffset = commentaryDrawerClosed ? commentaryDrawerDragMaxOffset : 0;
         commentaryDrawerDragOffset = commentaryDrawerDragStartOffset;
         document.addEventListener('pointermove', commentaryDrawerDragMoveHandler);
         document.addEventListener('pointerup', commentaryDrawerDragEndHandler);
