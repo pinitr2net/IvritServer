@@ -568,7 +568,7 @@ app.get('/sefaria/commentators', async (req, res) => {
 
 app.get('/sefaria/commentary', async (req, res) => {
   const { book, chapter, minVerse, maxVerse, valid } = parseVerseRange(req);
-  const commentatorPrefix = req.query.commentator || 'Steinsaltz';
+  const commentatorPrefix = req.query.commentator || 'Rashi';
   if (!valid || !COMMENTATOR_PREFIX_RE.test(commentatorPrefix)) {
     return res.status(400).json({ error: 'קלט לא תקין' });
   }

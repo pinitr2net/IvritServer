@@ -349,13 +349,13 @@
       transform: translateY(100%);
       transition: transform 0.3s ease;
       direction: rtl;
-      padding: 0.75rem 1.25rem 1.25rem;
+      padding: 0.25rem 1.25rem 1.25rem;
       box-sizing: border-box;
     }
     #commentaryDrawer.open { transform: translateY(0); }
     /* "סגורה" בתוך תצוגת המשתמש - לא נעלמת לגמרי כמו כשיוצאים מתצוגת המשתמש (translateY(100%)
        הבסיסי), אלא משאירה פס אחיזה בולט מציץ מעל תחתית המסך, לגרירה/לחיצה כדי לפתוח מחדש. */
-    #commentaryDrawer.peek { transform: translateY(calc(100% - 40px)); }
+    #commentaryDrawer.peek { transform: translateY(calc(100% - 42px)); }
     #commentaryDrawerHandle {
       position: relative;
       flex-shrink: 0;
@@ -375,11 +375,39 @@
       left: -20px; right: -20px;
     }
     #commentaryDrawerHandle:active { cursor: grabbing; }
+    /* מוצא מזרימת התוכן הרגילה (position:absolute, יחסית לקופסת #commentaryDrawer עצמה, שהיא
+       positioned בזכות ה-fixed) ומוצמד כמעט לקצה העליון - כדי שהכפתור יופיע ויהיה לחיץ גם במצב
+       "סגור"/peek של המגירה (ראו #commentaryDrawer.peek ו-DRAWER_PEEK_PX), בלי לחכות שהמגירה תיפתח.
+       ברוחב מוגבל לתוכן בלבד (בלי left) כדי לא לחפוף לאזור התפיסה המורחב של פס האחיזה (#commentaryDrawerHandle::before). */
     #commentaryDrawerHeader {
+      position: absolute;
+      top: 0.4rem;
+      right: 1.25rem;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      flex-shrink: 0;
+      z-index: 2;
+    }
+    /* כמו commentaryDrawerHeader (position:absolute יחסית ל-#commentaryDrawer, גלוי גם ב-peek) אבל
+       בצד השני - נראה כמו .uv-big-play-btn (עיגול כתום) ומתנהג כמוהו (toggle play/pause), אבל
+       לעולם לא נעלם (בניגוד ל-uv-big-play-btn שמוצג רק לפני הפסוק הראשון/לפני שהניגון התחיל). */
+    #commentaryDrawerPlayBtn {
+      position: absolute;
+      top: 0.4rem;
+      left: 1.25rem;
+      width: 2.4rem;
+      height: 2.4rem;
+      border-radius: 50%;
+      border: none;
+      background: #f5a623;
+      color: #fff;
+      font-size: 1.05rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 2;
+      padding: 0;
     }
     #commentaryDrawerSelector { position: relative; }
     .commentary-tab {
@@ -401,7 +429,10 @@
       border: 1px solid #cbd5e1;
       border-radius: 10px;
       box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-      overflow: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      max-height: 50vh;
       z-index: 10;
       min-width: 110px;
     }
@@ -421,7 +452,9 @@
     .commentary-option:hover { background: #f1f5f9; }
     .commentary-option.active { font-weight: 700; color: #1e293b; }
     #commentaryDrawerRef { display: none; }
-    #commentaryDrawerBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; font-size: 1.05rem; line-height: 1.6; color: #1e293b; }
+    /* margin-top מפצה על הוצאת #commentaryDrawerHeader מהזרימה (עכשיו position:absolute, ראו שם) -
+       כדי שתחילת התוכן לא תיכנס מתחת לכפתור הבורר הצף בפינה. */
+    #commentaryDrawerBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-top: 1.4rem; font-size: 1.05rem; line-height: 1.6; color: #1e293b; }
     #userViewTitle {
       padding-top: 10px;
       flex-shrink: 0;
@@ -773,6 +806,7 @@
 
   <div id="commentaryDrawer">
     <div id="commentaryDrawerHandle"></div>
+    <button id="commentaryDrawerPlayBtn" type="button" aria-label="נגן/השהה"></button>
     <div id="commentaryDrawerHeader">
       <div id="commentaryDrawerSelector">
         <button id="commentaryDrawerCommentatorBtn" class="commentary-tab" type="button"></button>
@@ -796,6 +830,10 @@
     // מוצהר כאן (מוקדם) ולא רק ליד מאזיני ה-play/pause שמשתמשים בו - applyMeterVisibility (רחוק למטה)
     // כבר קורא לו בקריאה המיידית הראשונה שלו, לפני שהגענו לשורה שמאזינה לאירועים בפועל.
     let audioEverPlayed = false;
+    // true כשהניגון נפתח עם מיקום שמור (לא 0) משיעור קודם - במצב הזה כפתור ה-PLAY הגדול
+    // ("תלחץ כאן כדי להתחיל") לא אמור להופיע רק בגלל ש-audioEverPlayed=false, כי אנחנו כבר
+    // באמצע השיעור, לא בהתחלה. עדיין מוצג במצב beforeFirstVerse (למשל גרירת הסימון חזרה ל-0).
+    let positionRestoredNonZero = false;
     let uvGestureCooldown = false;
     let uvTouchStartY = null;
     let uvRowEls = [];
@@ -851,7 +889,10 @@
       // הרמז הראשוני: הוא מתמוטט ל-idx=-1 כבר ב-updateUserViewPlayback הראשון שרץ אוטומטית
       // ב-toggleUserView (בלי אינטראקציה בכלל, כי פסוק 0 לרוב מתחיל אחרי זמן 0) - audioEverPlayed
       // הופך ל-true רק ב-'play' event אמיתי ונשאר true לצמיתות עד רענון.
-      uvShowBigPlayBtn(!audioEverPlayed || beforeFirstVerse);
+      // חריג: positionRestoredNonZero (נכנסנו לשיעור עם מיקום שמור לא-0) - שם אין טעם ברמז "תלחץ
+      // כאן כדי להתחיל" כי כבר באמצע השיעור, לא בהתחלה שלו. עדיין מוצג ב-beforeFirstVerse (למשל
+      // גרירת הסימון חזרה ל-0), כי זה מצב אמיתי של "לפני הפסוק הראשון" גם בשיעור עם מיקום משוחזר.
+      uvShowBigPlayBtn(beforeFirstVerse || (!audioEverPlayed && !positionRestoredNonZero));
       if (!showMeter || uvCurrentIdx === null) return;
       const targetIdx = beforeFirstVerse ? 0 : (meterPosition === 'next' ? uvCurrentIdx + 1 : uvCurrentIdx);
       const row = uvRowEls[targetIdx];
@@ -900,6 +941,14 @@
     function uvUpdateBigPlayBtn() {
       const btn = document.getElementById('uvBigPlayBtn');
       if (!btn || !btn.classList.contains('uv-visible')) return;
+      const audio = document.getElementById('srtPlayer');
+      btn.textContent = audio.paused ? '▶' : '⏸';
+    }
+
+    // כמו uvUpdateBigPlayBtn, אבל בלי בדיקת uv-visible - הכפתור הזה (במגירת הפירוש) מוצג לצמיתות.
+    function uvUpdateDrawerPlayBtn() {
+      const btn = document.getElementById('commentaryDrawerPlayBtn');
+      if (!btn) return;
       const audio = document.getElementById('srtPlayer');
       btn.textContent = audio.paused ? '▶' : '⏸';
     }
@@ -1160,6 +1209,7 @@
       const key = `lectureAudioPos_${slug}`;
       const saved = parseFloat(localStorage.getItem(key));
       if (!isNaN(saved) && saved > 0) {
+        positionRestoredNonZero = true;
         audio.addEventListener('loadedmetadata', () => { audio.currentTime = saved; }, { once: true });
       }
       // בלי כתיבה תכופה ב-timeupdate: כתיבה סינכרונית ל-localStorage כל 2 שניות תוך כדי ניגון
@@ -1735,8 +1785,8 @@
       if (uvPauseWatchRaf !== null) { cancelAnimationFrame(uvPauseWatchRaf); uvPauseWatchRaf = null; }
     }
 
-    document.getElementById('srtPlayer').addEventListener('play', () => { audioEverPlayed = true; uvUpdatePlayStateIcon(); uvUpdateBigPlayBtn(); requestWakeLock(); });
-    document.getElementById('srtPlayer').addEventListener('pause', () => { uvUpdatePlayStateIcon(); uvUpdateBigPlayBtn(); releaseWakeLock(); });
+    document.getElementById('srtPlayer').addEventListener('play', () => { audioEverPlayed = true; uvUpdatePlayStateIcon(); uvUpdateBigPlayBtn(); uvUpdateDrawerPlayBtn(); requestWakeLock(); });
+    document.getElementById('srtPlayer').addEventListener('pause', () => { uvUpdatePlayStateIcon(); uvUpdateBigPlayBtn(); uvUpdateDrawerPlayBtn(); releaseWakeLock(); });
 
     // Wake Lock: מונע מהמסך להיכבות/להינעל בזמן ניגון (בלי נגיעה במסך). ה-wake lock משתחרר
     // אוטומטית ע"י הדפדפן כשהעמוד עובר לרקע (טאב אחר/מסך ננעל) - צריך לבקש אותו מחדש
@@ -1763,7 +1813,7 @@
       // כבר הופך את paused ל-false ברגע ש-play() נקרא (סינכרוני, לפי הספק), עוד לפני שאירוע ה-click
       // של הכפתור מגיע להריץ את ה-toggle שלו - ואז ה-toggle רואה paused=false וקורא מיד ל-pause()
       // (לחיצה ראשונה "לא עובדת"). לחיצה על הכפתור עצמו היא כבר אינטראקציה אמיתית שתפעיל play() משלה.
-      if (e.target.closest('#uvBigPlayBtn')) return;
+      if (e.target.closest('#uvBigPlayBtn') || e.target.closest('#commentaryDrawerPlayBtn')) return;
       const audio = document.getElementById('srtPlayer');
       audio.play().catch(() => {});
       audio.pause(); // רק "העירו" - לא אמור להשאיר ניגון בפועל (ראו uvSeekTo לאותה תבנית)
@@ -1821,6 +1871,7 @@
     (function setupUvSeekBar() {
       const bar = document.getElementById('uvSeekBar');
       bar.addEventListener('pointerdown', (e) => {
+        e.stopPropagation(); // לא גם גרירת מגירת הפירוש (מאזין ה-pointerdown הרחב על #userView, ראו setupCommentaryDrawerDrag)
         uvSeekBarDragging = true;
         bar.setPointerCapture(e.pointerId);
         // עוצר תמיד עם הנחת האצבע, גם אם הפסוק הקרוב ביותר זהה לנוכחי (uvSeekTo לא היה נקרא אז,
@@ -1854,10 +1905,10 @@
     const commentatorsChapterCache = new Map(); // key: book|chapter -> Promise<{verseNum: [{prefix,label}]}>
     const resolvedCommentatorsChapters = new Map();
     // prefix -> label בעברית, נאסף מכל פעם שרשימת פרשנים נשלפה (לתצוגת כפתור בלי לשלוף רשימה מחדש) -
-    // עם ערך זרוע מראש לברירת המחדל, כדי שהכפתור לא יראה "Steinsaltz" באנגלית לפני שהרשימה נפתחה ולו פעם אחת
-    const commentatorLabels = new Map([['Steinsaltz', 'שטיינזלץ']]);
+    // עם ערך זרוע מראש לברירת המחדל, כדי שהכפתור לא יראה "Rashi" באנגלית לפני שהרשימה נפתחה ולו פעם אחת
+    const commentatorLabels = new Map([['Rashi', 'רש"י']]);
     // sessionStorage (לא localStorage) - נשאר אחרי רענון (גם אם לא אחרי סגירת הטאב, מספיק לצורך "נישאר עם הפרשן הזה")
-    let commentaryDrawerCommentator = sessionStorage.getItem('commentaryCommentator') || 'Steinsaltz';
+    let commentaryDrawerCommentator = sessionStorage.getItem('commentaryCommentator') || 'Rashi';
     let commentaryDrawerVerse = null;
 
     // הטווח שהשיעור הזה מכסה בפועל באותו פרק - לא בהכרח הפרק המלא בספריא, אבל מספיק לכל מה
@@ -1958,7 +2009,7 @@
     // גרירת פס האחיזה: המגירה עוקבת אחרי האצבע/עכבר בזמן אמת (transform ישיר, בלי transition) בין
     // "פתוחה" ל"פס בולט" (peek), ובשחרור "קופצת" לאחד משני המצבים בלבד לפי המיקום האחרון - אין מצב
     // ביניים קבוע. לחיצה קצרה בלי גרירה משמעותית פשוט הופכת את המצב הנוכחי (כמו הכפתור/החץ הישנים).
-    const DRAWER_PEEK_PX = 40; // חייב להתאים ל-calc(100% - 40px) ב-CSS של #commentaryDrawer.peek
+    const DRAWER_PEEK_PX = 66; // חייב להתאים ל-calc(100% - 66px) ב-CSS של #commentaryDrawer.peek
     // סף רגיש: כמה מהמרחק (0-1) מספיק למשוך כדי שהמגירה תיסגר/תיפתח, בכל כיוון בנפרד
     const DRAWER_CLOSE_DRAG_RATIO = 0.2;
     const DRAWER_OPEN_DRAG_RATIO = 0.2;
@@ -2079,6 +2130,13 @@
       const audio = document.getElementById('srtPlayer');
       if (audio.paused) audio.play().catch(() => {}); else audio.pause();
     });
+    // אלמנט עצמאי בתוך #commentaryDrawer (לא בתוך #userViewVerses או פס האחיזה) - אין גרירה
+    // שיכולה "לדלוף" לכפתור הזה, אז אין צורך לבדוק commentaryDrawerJustDragged כמו בכפתור הגדול.
+    document.getElementById('commentaryDrawerPlayBtn').addEventListener('click', () => {
+      const audio = document.getElementById('srtPlayer');
+      if (audio.paused) audio.play().catch(() => {}); else audio.pause();
+    });
+    uvUpdateDrawerPlayBtn();
 
     document.getElementById('uvTrack').addEventListener('click', (e) => {
       // ה-click הראשון אחרי שחרור גרירת המד מדולג תמיד - גם אם היעד בפועל (mouseup) נפל מחוץ למד,
