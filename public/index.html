@@ -354,7 +354,7 @@
       /* מקור אמת יחיד לגובה ה"פס הבולט" (peek) - גם ל-.peek למטה וגם ל-DRAWER_PEEK_PX ב-JS
          (נקרא עם getComputedStyle, ראו getDrawerPeekPx). מכוונן ידנית כאן בלבד - אין צורך לעדכן
          עוד ערך במקביל, זה בדיוק מה שגרם בעבר לקפיצה קטנה בתחילת גרירה כששני המספרים לא היו זהים. */
-      --drawer-peek-px: 47px;
+      --drawer-peek-px: 60px;
     }
     #commentaryDrawer.open { transform: translateY(0); }
     /* "סגורה" בתוך תצוגת המשתמש - לא נעלמת לגמרי כמו כשיוצאים מתצוגת המשתמש (translateY(100%)
@@ -480,6 +480,10 @@
       width: 100%;
       max-width: calc(720px + 2.4rem);
       margin: 0 auto;
+      /* מפנה בתחתית בגובה פס ה-peek של מגירת הפירוש (ראו #commentaryDrawer.peek), ועוד קצת רווח
+         נוסף מעליו - כדי ש-uvSeekBar (שנמתח לכל גובה #userViewMiddle) לא ייכנס מתחת למגירה כשהיא
+         סגורה/peek, ושיישאר גם רווח קטן ביניהם. */
+      margin-bottom: 57px;
       box-sizing: border-box;
     }
     #uvSeekBar {
@@ -1606,6 +1610,12 @@
       // כפתור ה-play/pause הגדול הוא אח של uvDrawerShift (לא בתוכו, כי uvTrack עובר בו innerHTML
       // מלא) - מקבל את אותה הזזה ידנית כדי לעלות יחד עם הפסוקים כשהמגירה נפתחת
       document.getElementById('uvBigPlayBtn').style.transform = `translateX(-50%) translateY(${drawerShiftPx}px)`;
+
+      // פס הגרירה (uvSeekBar) נמתח כברירת מחדל לכל גובה #userViewMiddle - מכווצים אותו מלמטה
+      // באותה כמות שהמגירה מכסה, כדי שהוא "יתקצר" ולא ייכנס מתחתיה תוך כדי אנימציית הפתיחה
+      // (uvSeekBarFractionFromEvent/uvSeekBarRender ממילא עובדים לפי הגובה בפועל של הפס, אז הטווח
+      // 0%-100% ממשיך למפות נכון לכל האודיו גם כשהגובה מצטמצם).
+      document.getElementById('uvSeekBar').style.height = `calc(100% - ${drawerCoverPx}px)`;
     }
 
     let uvScrollRaf = null;
@@ -1988,11 +1998,13 @@
     let commentaryDrawerClosed = sessionStorage.getItem('commentaryDrawerClosed') === '1';
 
     // מעדכן את התוכן בלבד - לכל מעבר פסוק (לחיצה, גלילה/מקלדת, או התקדמות טבעית של הניגון) -
-    // המגירה מוצגת תמיד כל עוד תצוגת המשתמש פעילה, אין יותר מצב "סגור" נפרד מ"גודל קטן"
+    // המגירה מוצגת תמיד כל עוד תצוגת המשתמש פעילה, אין יותר מצב "סגור" נפרד מ"גודל קטן".
+    // בקשת הפירוש מספריא נשלחת רק כשהמגירה פתוחה בפועל (לא ב-peek) - אין טעם למשוך פירוש
+    // שהמשתמש לא רואה; showCommentaryDrawerBack משלימה את הבקשה לפסוק הנוכחי כשהמגירה נפתחת.
     function updateCommentaryDrawerForVerse(v) {
       commentaryDrawerVerse = v;
       renderCommentaryDrawer(); // אם כבר יש קאש לפרק/פרשן הזה - מוצג מיד, בלי "טוען..."
-      loadCommentaryForDrawer(v, commentaryDrawerCommentator);
+      if (!commentaryDrawerClosed) loadCommentaryForDrawer(v, commentaryDrawerCommentator);
     }
 
     // "סוגרת" את המגירה - במקום להיעלם לגמרי, נשארת ב"פס בולט" (peek, ראו CSS) לגרירה/לחיצה כדי לפתוח חזרה
@@ -2010,6 +2022,8 @@
       sessionStorage.setItem('commentaryDrawerClosed', '0');
       document.getElementById('commentaryDrawer').classList.remove('peek');
       document.getElementById('commentaryDrawer').classList.add('open');
+      // בעודה סגורה לא נשלחה בקשת פירוש לפסוק הנוכחי (ראו updateCommentaryDrawerForVerse) - להשלים אותה עכשיו
+      if (commentaryDrawerVerse) loadCommentaryForDrawer(commentaryDrawerVerse, commentaryDrawerCommentator);
     }
 
     // גרירת פס האחיזה: המגירה עוקבת אחרי האצבע/עכבר בזמן אמת (transform ישיר, בלי transition) בין
@@ -2169,10 +2183,13 @@
         if (audio.paused) { audio.play().catch(() => {}); uvFlashPlayIcon(row, '▶'); }
         else { audio.pause(); uvFlashPlayIcon(row, '⏸'); }
       } else {
-        // לחיצה על פסוק אחר - תמיד מנווטת אליו ומתחילה לנגן ממנו, בלי קשר למצב הקודם (מנגן/עצור)
+        // לחיצה על פסוק אחר - מנווטת אליו; ממשיכה לנגן רק אם כבר ניגנו קודם, נשארת בהשהיה אם היינו ב-pause
+        const wasPlaying = !audio.paused;
         uvSeekTo(idx); // מעדכן את uvCurrentIdx ומדלג ל-currentTime של הפסוק (מסיים ב-pause פנימי משלו)
-        audio.play().catch(() => {});
-        uvFlashPlayIcon(row, '▶');
+        if (wasPlaying) {
+          audio.play().catch(() => {});
+          uvFlashPlayIcon(row, '▶');
+        }
       }
     });
 
