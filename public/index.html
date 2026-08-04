@@ -752,13 +752,6 @@
       <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;color:#555;cursor:pointer;user-select:none;">
         <input type="checkbox" id="showMeterCheckbox" checked onchange="setShowMeter(this.checked)" style="cursor:pointer;"> הצג מד התקדמות בתצוגת משתמש
       </label>
-      <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;color:#555;user-select:none;">
-        מיקום מד ההתקדמות:
-        <select id="meterPositionSelect" onchange="setMeterPosition(this.value)" style="padding:0.2rem 0.4rem;border-radius:4px;border:1px solid #ccc;cursor:pointer;">
-          <option value="current">מתחת לפסוק הנוכחי (סוף הפסוק)</option>
-          <option value="next">מתחת לפסוק הבא (תחילת הפסוק הבא)</option>
-        </select>
-      </label>
       <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;color:#555;cursor:pointer;user-select:none;">
         <input type="checkbox" id="pauseBeforeVerseCheckbox" onchange="setPauseBeforeVerse(this.checked)" style="cursor:pointer;"> עצור מעט אחרי שכל פסוק מתחיל (תצוגת משתמש)
       </label>
@@ -863,8 +856,6 @@
     document.getElementById('prevVersesSelect').value = String(prevVersesCount);
     let showMeter = localStorage.getItem('uvShowMeter') !== 'false';
     document.getElementById('showMeterCheckbox').checked = showMeter;
-    let meterPosition = localStorage.getItem('uvMeterPosition') === 'next' ? 'next' : 'current';
-    document.getElementById('meterPositionSelect').value = meterPosition;
     let pauseBeforeVerse = localStorage.getItem('uvPauseBeforeVerse') === 'true';
     document.getElementById('pauseBeforeVerseCheckbox').checked = pauseBeforeVerse;
     let uvPauseHandledIdx = null;
@@ -910,7 +901,7 @@
       // גרירת הסימון חזרה ל-0), כי זה מצב אמיתי של "לפני הפסוק הראשון" גם בשיעור עם מיקום משוחזר.
       uvShowBigPlayBtn(beforeFirstVerse || (!audioEverPlayed && !positionRestoredNonZero));
       if (!showMeter || uvCurrentIdx === null) return;
-      const targetIdx = beforeFirstVerse ? 0 : (meterPosition === 'next' ? uvCurrentIdx + 1 : uvCurrentIdx);
+      const targetIdx = beforeFirstVerse ? 0 : uvCurrentIdx;
       const row = uvRowEls[targetIdx];
       if (!row) return;
       const meterEl = row.querySelector('.uv-meter');
@@ -988,12 +979,6 @@
       pauseBeforeVerse = checked;
       localStorage.setItem('uvPauseBeforeVerse', String(checked));
       uvPauseHandledIdx = null;
-    }
-
-    function setMeterPosition(value) {
-      meterPosition = value === 'next' ? 'next' : 'current';
-      localStorage.setItem('uvMeterPosition', meterPosition);
-      applyMeterVisibility();
     }
 
     document.getElementById('audioFile').addEventListener('change', async function () {
@@ -1901,11 +1886,23 @@
       uvSeekBarRender((nearestIdx >= 0 ? uvVerses[nearestIdx].sec : 0) / audio.duration);
     }
 
+    // הרוחב הכולל של #uvSeekBar (2.4rem) גדול בהרבה מהפס הדק (4px)/הידית (18px) הנראים - שאר השטח
+    // הוא "רפידה" נוחה למגע, אבל אורבת בדיוק באזור שבו אצבע שמנסה למשוך את המגירה (מכל אזור המסך,
+    // ראו startCommentaryDrawerDrag) נוחתת לעתים קרובות (הפס צמוד לקצה, אצבעות/אגודל נחים שם). לכן
+    // רק נגיעה קרובה בפועל לפס המרכזי נחשבת "גרירת seek" - נגיעה רחוקה יותר בתוך אותו רוחב "נופלת"
+    // לגרירת המגירה הרגילה במקום, בלי לגעת כלל בזמן הניגון.
+    const UV_SEEKBAR_HIT_HALF_WIDTH_PX = 14;
     let uvSeekBarDragging = false;
     (function setupUvSeekBar() {
       const bar = document.getElementById('uvSeekBar');
       bar.addEventListener('pointerdown', (e) => {
-        e.stopPropagation(); // לא גם גרירת מגירת הפירוש (מאזין ה-pointerdown הרחב על #userView, ראו setupCommentaryDrawerDrag)
+        const rect = bar.getBoundingClientRect();
+        const distFromCenter = Math.abs(e.clientX - (rect.left + rect.width / 2));
+        if (distFromCenter > UV_SEEKBAR_HIT_HALF_WIDTH_PX) {
+          startCommentaryDrawerDrag(e, false);
+          return;
+        }
+        e.stopPropagation(); // לא גם גרירת מגירת הפירוש
         uvSeekBarDragging = true;
         bar.setPointerCapture(e.pointerId);
         // עוצר תמיד עם הנחת האצבע, גם אם הפסוק הקרוב ביותר זהה לנוכחי (uvSeekTo לא היה נקרא אז,
@@ -2132,32 +2129,35 @@
     // מונע התחלת גרירה משטחים שצריכים גלילה טבעית משלהם (תוכן הפירוש, רשימת בחירת הפרשן) או מפס
     // האחיזה עצמו (שכבר מטופל בנפרד - בלי החרגה כאן, ה-pointerdown השני היה דורס את
     // commentaryDrawerDragAllowTapToggle בטעות כשהאירוע ממשיך לבעבע מהאחיזה למגירה).
-    function setupDrawerDragSurface(el, allowTapToggle, excludeSelectors) {
+    function startCommentaryDrawerDrag(e, allowTapToggle) {
       const drawer = document.getElementById('commentaryDrawer');
+      if (commentaryDrawerDragging) {
+        // גרירה קודמת "תקועה" (pointerup/pointercancel שלה לא הגיע - נדיר אך קורה ב-iOS כשמחווה
+        // מערכתית חוטפת את המגע) הייתה נועלת את הגרירה לצמיתות בלי זה - כל נגיעה חדשה הייתה
+        // מדולגת בשקט (commentaryDrawerDragging נשאר true), מרגיש כאילו "אין תזוזה בכלל".
+        // נגיעה חדשה מנקה את הישנה ומתחילה גרירה נקייה, בלי להפעיל לוגיקת סגירה/פתיחה על הישנה.
+        document.removeEventListener('pointermove', commentaryDrawerDragMoveHandler);
+        document.removeEventListener('pointerup', commentaryDrawerDragEndHandler);
+        document.removeEventListener('pointercancel', commentaryDrawerDragEndHandler);
+        drawer.style.transition = '';
+        drawer.style.transform = '';
+      }
+      commentaryDrawerDragging = true;
+      commentaryDrawerDragMoved = false;
+      commentaryDrawerDragAllowTapToggle = allowTapToggle;
+      commentaryDrawerDragStartedClosed = commentaryDrawerClosed;
+      commentaryDrawerDragStartY = e.clientY;
+      commentaryDrawerDragMaxOffset = drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer);
+      commentaryDrawerDragStartOffset = commentaryDrawerClosed ? commentaryDrawerDragMaxOffset : 0;
+      commentaryDrawerDragOffset = commentaryDrawerDragStartOffset;
+      document.addEventListener('pointermove', commentaryDrawerDragMoveHandler);
+      document.addEventListener('pointerup', commentaryDrawerDragEndHandler);
+      document.addEventListener('pointercancel', commentaryDrawerDragEndHandler);
+    }
+    function setupDrawerDragSurface(el, allowTapToggle, excludeSelectors) {
       el.addEventListener('pointerdown', (e) => {
         if (excludeSelectors && excludeSelectors.some((sel) => e.target.closest(sel))) return;
-        if (commentaryDrawerDragging) {
-          // גרירה קודמת "תקועה" (pointerup/pointercancel שלה לא הגיע - נדיר אך קורה ב-iOS כשמחווה
-          // מערכתית חוטפת את המגע) הייתה נועלת את הגרירה לצמיתות בלי זה - כל נגיעה חדשה הייתה
-          // מדולגת בשקט (commentaryDrawerDragging נשאר true), מרגיש כאילו "אין תזוזה בכלל".
-          // נגיעה חדשה מנקה את הישנה ומתחילה גרירה נקייה, בלי להפעיל לוגיקת סגירה/פתיחה על הישנה.
-          document.removeEventListener('pointermove', commentaryDrawerDragMoveHandler);
-          document.removeEventListener('pointerup', commentaryDrawerDragEndHandler);
-          document.removeEventListener('pointercancel', commentaryDrawerDragEndHandler);
-          drawer.style.transition = '';
-          drawer.style.transform = '';
-        }
-        commentaryDrawerDragging = true;
-        commentaryDrawerDragMoved = false;
-        commentaryDrawerDragAllowTapToggle = allowTapToggle;
-        commentaryDrawerDragStartedClosed = commentaryDrawerClosed;
-        commentaryDrawerDragStartY = e.clientY;
-        commentaryDrawerDragMaxOffset = drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer);
-        commentaryDrawerDragStartOffset = commentaryDrawerClosed ? commentaryDrawerDragMaxOffset : 0;
-        commentaryDrawerDragOffset = commentaryDrawerDragStartOffset;
-        document.addEventListener('pointermove', commentaryDrawerDragMoveHandler);
-        document.addEventListener('pointerup', commentaryDrawerDragEndHandler);
-        document.addEventListener('pointercancel', commentaryDrawerDragEndHandler);
+        startCommentaryDrawerDrag(e, allowTapToggle);
       });
     }
     setupDrawerDragSurface(document.getElementById('commentaryDrawerHandle'), true);
