@@ -483,7 +483,7 @@
       /* מפנה בתחתית בגובה פס ה-peek של מגירת הפירוש (ראו #commentaryDrawer.peek), ועוד קצת רווח
          נוסף מעליו - כדי ש-uvSeekBar (שנמתח לכל גובה #userViewMiddle) לא ייכנס מתחת למגירה כשהיא
          סגורה/peek, ושיישאר גם רווח קטן ביניהם. */
-      margin-bottom: 57px;
+      margin-bottom: 62px;
       box-sizing: border-box;
     }
     #uvSeekBar {
@@ -1578,6 +1578,9 @@
     }
 
     const UV_ANCHOR_RATIO = 0.35; // חלק מגובה ה-viewport שבו "יושבת" השורה הפעילה (0.5 = מרכז מדויק)
+    // רווח קבוע שנשמר בין סוף uvSeekBar לראש מגירת הפירוש (ראו שימוש ב-uvPositionTrack) - בלי זה
+    // ה-drawerCoverPx הגולמי נצמד לפס בדיוק כשהמגירה במצב open לגמרי, בלי שום מרווח.
+    const UV_SEEKBAR_DRAWER_GAP_PX = 10;
     // כמה מתחתית ה-viewport מכוסה כרגע ע"י מגירת הפירוש (px) - נמדד לפי המיקום האמיתי על המסך
     // (getBoundingClientRect, לא לפי class), כך שהעוגן זז בהדרגה גם באמצע אנימציית הפתיחה/סגירה
     function uvGetDrawerCoverPx(viewportRect) {
@@ -1611,11 +1614,16 @@
       // מלא) - מקבל את אותה הזזה ידנית כדי לעלות יחד עם הפסוקים כשהמגירה נפתחת
       document.getElementById('uvBigPlayBtn').style.transform = `translateX(-50%) translateY(${drawerShiftPx}px)`;
 
-      // פס הגרירה (uvSeekBar) נמתח כברירת מחדל לכל גובה #userViewMiddle - מכווצים אותו מלמטה
-      // באותה כמות שהמגירה מכסה, כדי שהוא "יתקצר" ולא ייכנס מתחתיה תוך כדי אנימציית הפתיחה
+      // פס הגרירה (uvSeekBar) נמתח כברירת מחדל לכל גובה #userViewMiddle - מודדים ישירות מול המיקום
+      // האמיתי של ראש המגירה (getBoundingClientRect, לא drawerCoverPx שמחושב יחסית ל-margin-bottom
+      // של #userViewMiddle) כדי שהרווח הקבוע (UV_SEEKBAR_DRAWER_GAP_PX) יישמר זהה במצב peek, במצב
+      // open ובכל רגע באמצע האנימציה ביניהם - לא רק כשהמגירה כבר חופפת בפועל את ה-margin.
       // (uvSeekBarFractionFromEvent/uvSeekBarRender ממילא עובדים לפי הגובה בפועל של הפס, אז הטווח
       // 0%-100% ממשיך למפות נכון לכל האודיו גם כשהגובה מצטמצם).
-      document.getElementById('uvSeekBar').style.height = `calc(100% - ${drawerCoverPx}px)`;
+      const seekBarTop = viewport.getBoundingClientRect().top;
+      const drawerTop = document.getElementById('commentaryDrawer').getBoundingClientRect().top;
+      const seekBarHeightPx = Math.max(0, drawerTop - UV_SEEKBAR_DRAWER_GAP_PX - seekBarTop);
+      document.getElementById('uvSeekBar').style.height = `${seekBarHeightPx}px`;
     }
 
     let uvScrollRaf = null;
@@ -2052,11 +2060,68 @@
     // שנופל על אותו מקום (mouseup) צריך להתעלם ממנו, בדיוק כמו uvMeterJustDragged למעלה.
     let commentaryDrawerJustDragged = false;
 
-    // גורם משותף לגרירת המגירה - נקרא גם מפס האחיזה (עם toggle-בלחיצה) וגם מאזור הפסוקים
-    // (בלי toggle-בלחיצה, כדי לא לפגוע בלחיצה רגילה על פסוק/כפתור הניגון - רק גרירה משמעותית שם נחשבת).
-    function setupDrawerDragSurface(el, allowTapToggle) {
+    // גרירת המגירה: pointerdown נרשם על כל "משטח" (פס האחיזה/אזור הפסוקים/שאר המגירה), אבל
+    // pointermove/pointerup נרשמים על document כשגרירה מתחילה - לא setPointerCapture. נוסה במפורש
+    // עם setPointerCapture (גם ב-pointerdown וגם נדחה עד אחרי חציית סף התזוזה) ונדחה: אושר בבדיקה
+    // (Chromium/Playwright) ששתי הגישות שבורות - capture מיידי ב-pointerdown "חוטף" את ה-click הבא
+    // (גם בלי תזוזה בכלל!) לאלמנט שביצע את ה-capture במקום ליעד ההיטסט האמיתי (כך טאפ על פסוק/כפתור
+    // בתוך אזור הגרירה הפסיק לעבוד לגמרי), ו-capture דחוי לרגע חציית הסף גרם ל-pointermove הבאים
+    // להפסיק להגיע כלל (אושר גם ב-repro מינימלי, לא רק בקוד הזה). גרירה מבוססת document listeners
+    // עוקפת את שתי הבעיות: אף פעם לא קוראים ל-setPointerCapture, אז click רגיל תמיד ממשיך לעבוד
+    // כרגיל, וה-move/up ממשיכים להגיע ל-document תמיד בלי קשר לאיפה על המסך האצבע/עכבר נמצאים עכשיו.
+    function commentaryDrawerDragMoveHandler(e) {
+      if (!commentaryDrawerDragging) return;
+      const drawer = document.getElementById('commentaryDrawer');
+      const delta = e.clientY - commentaryDrawerDragStartY;
+      if (Math.abs(delta) > 5 && !commentaryDrawerDragMoved) {
+        commentaryDrawerDragMoved = true;
+        drawer.style.transition = 'none';
+      }
+      if (!commentaryDrawerDragMoved) return; // עוד בתוך סף הטאפ - לא מזיזים את המגירה עדיין
+      const maxOffset = drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer);
+      commentaryDrawerDragOffset = Math.min(maxOffset, Math.max(0, commentaryDrawerDragStartOffset + delta));
+      drawer.style.transform = `translateY(${commentaryDrawerDragOffset}px)`;
+    }
+    function commentaryDrawerDragEndHandler() {
+      if (!commentaryDrawerDragging) return;
+      document.removeEventListener('pointermove', commentaryDrawerDragMoveHandler);
+      document.removeEventListener('pointerup', commentaryDrawerDragEndHandler);
+      document.removeEventListener('pointercancel', commentaryDrawerDragEndHandler);
+      commentaryDrawerDragging = false;
+      const drawer = document.getElementById('commentaryDrawer');
+      drawer.style.transition = '';
+      drawer.style.transform = '';
+      const maxOffset = drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer);
+      // בלי גרירה משמעותית - לחיצה פשוטה הופכת את המצב (רק אם commentaryDrawerDragAllowTapToggle,
+      // כלומר פס האחיזה); עם גרירה - סף נמוך ורגיש, שונה לכל כיוון (התחלה מפתוח דורשת רק
+      // DRAWER_CLOSE_DRAG_RATIO כדי לסגור; התחלה מסגור דורשת רק DRAWER_OPEN_DRAG_RATIO כדי לפתוח)
+      let shouldClose;
+      if (!commentaryDrawerDragMoved) {
+        if (!commentaryDrawerDragAllowTapToggle) return; // לחיצה רגילה באזור הפסוקים/המגירה - לא נוגעים במגירה
+        shouldClose = !commentaryDrawerClosed;
+      } else if (commentaryDrawerDragStartedClosed) {
+        shouldClose = commentaryDrawerDragOffset > maxOffset * (1 - DRAWER_OPEN_DRAG_RATIO);
+      } else {
+        shouldClose = commentaryDrawerDragOffset > maxOffset * DRAWER_CLOSE_DRAG_RATIO;
+      }
+      if (commentaryDrawerDragMoved && !commentaryDrawerDragAllowTapToggle) {
+        commentaryDrawerJustDragged = true;
+        setTimeout(() => { commentaryDrawerJustDragged = false; }, 350);
+      }
+      if (shouldClose && !commentaryDrawerClosed) hideCommentaryDrawer();
+      else if (!shouldClose && commentaryDrawerClosed) showCommentaryDrawerBack();
+    }
+    // נקרא מפס האחיזה (עם toggle-בלחיצה), מאזור הפסוקים, וגם מכל שאר שטח המגירה עצמה כשהיא פתוחה
+    // (הכותרת/בורר הפרשן/כפתור הניגון) - בלי toggle-בלחיצה בשני האחרונים, כדי לא לפגוע בלחיצה רגילה
+    // על פסוק/כפתור (רק גרירה משמעותית שם נחשבת, ראו commentaryDrawerJustDragged). excludeSelectors
+    // מונע התחלת גרירה משטחים שצריכים גלילה טבעית משלהם (תוכן הפירוש, רשימת בחירת הפרשן) או מפס
+    // האחיזה עצמו (שכבר מטופל בנפרד - בלי החרגה כאן, ה-pointerdown השני היה דורס את
+    // commentaryDrawerDragAllowTapToggle בטעות כשהאירוע ממשיך לבעבע מהאחיזה למגירה).
+    function setupDrawerDragSurface(el, allowTapToggle, excludeSelectors) {
       const drawer = document.getElementById('commentaryDrawer');
       el.addEventListener('pointerdown', (e) => {
+        if (excludeSelectors && excludeSelectors.some((sel) => e.target.closest(sel))) return;
+        if (commentaryDrawerDragging) return; // גרירה כבר פעילה (למשל ריבוי-מגע) - לא להתחיל עוד אחת
         commentaryDrawerDragging = true;
         commentaryDrawerDragMoved = false;
         commentaryDrawerDragAllowTapToggle = allowTapToggle;
@@ -2064,48 +2129,24 @@
         commentaryDrawerDragStartY = e.clientY;
         commentaryDrawerDragStartOffset = commentaryDrawerClosed ? drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer) : 0;
         commentaryDrawerDragOffset = commentaryDrawerDragStartOffset;
-        el.setPointerCapture(e.pointerId);
-        drawer.style.transition = 'none';
+        document.addEventListener('pointermove', commentaryDrawerDragMoveHandler);
+        document.addEventListener('pointerup', commentaryDrawerDragEndHandler);
+        document.addEventListener('pointercancel', commentaryDrawerDragEndHandler);
       });
-      el.addEventListener('pointermove', (e) => {
-        if (!commentaryDrawerDragging) return;
-        const delta = e.clientY - commentaryDrawerDragStartY;
-        if (Math.abs(delta) > 5) commentaryDrawerDragMoved = true;
-        const maxOffset = drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer);
-        commentaryDrawerDragOffset = Math.min(maxOffset, Math.max(0, commentaryDrawerDragStartOffset + delta));
-        drawer.style.transform = `translateY(${commentaryDrawerDragOffset}px)`;
-      });
-      ['pointerup', 'pointercancel'].forEach(evt => el.addEventListener(evt, () => {
-        if (!commentaryDrawerDragging) return;
-        commentaryDrawerDragging = false;
-        drawer.style.transition = '';
-        drawer.style.transform = '';
-        const maxOffset = drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer);
-        // בלי גרירה משמעותית - לחיצה פשוטה הופכת את המצב (רק אם allowTapToggle, כלומר פס האחיזה);
-        // עם גרירה - סף נמוך ורגיש, שונה לכל כיוון
-        // (התחלה מפתוח דורשת רק DRAWER_CLOSE_DRAG_RATIO כדי לסגור; התחלה מסגור דורשת רק DRAWER_OPEN_DRAG_RATIO כדי לפתוח)
-        let shouldClose;
-        if (!commentaryDrawerDragMoved) {
-          if (!commentaryDrawerDragAllowTapToggle) return; // לחיצה רגילה באזור הפסוקים - לא נוגעים במגירה
-          shouldClose = !commentaryDrawerClosed;
-        } else if (commentaryDrawerDragStartedClosed) {
-          shouldClose = commentaryDrawerDragOffset > maxOffset * (1 - DRAWER_OPEN_DRAG_RATIO);
-        } else {
-          shouldClose = commentaryDrawerDragOffset > maxOffset * DRAWER_CLOSE_DRAG_RATIO;
-        }
-        if (commentaryDrawerDragMoved && !allowTapToggle) {
-          commentaryDrawerJustDragged = true;
-          setTimeout(() => { commentaryDrawerJustDragged = false; }, 350);
-        }
-        if (shouldClose && !commentaryDrawerClosed) hideCommentaryDrawer();
-        else if (!shouldClose && commentaryDrawerClosed) showCommentaryDrawerBack();
-      }));
     }
     setupDrawerDragSurface(document.getElementById('commentaryDrawerHandle'), true);
     setupDrawerDragSurface(document.getElementById('userViewVerses'), false);
+    // כל שאר שטח המגירה (כותרת, בורר הפרשן, כפתור הניגון, רקע) - לא רק פס האחיזה הדק; זו הייתה
+    // הסיבה לכך שבאייפון גרירה "מהמגירה עצמה" הרגישה לא אמינה (לפעמים האצבע פשוט לא נחתה בדיוק
+    // על 44x6 הפיקסלים של האחיזה). #commentaryDrawerBody ו-#commentaryDrawerCommentatorList מוחרגים
+    // כי הם צריכים גלילה טבעית משלהם (טקסט פירוש ארוך / רשימת פרשנים ארוכה).
+    setupDrawerDragSurface(document.getElementById('commentaryDrawer'), false,
+      ['#commentaryDrawerHandle', '#commentaryDrawerBody', '#commentaryDrawerCommentatorList']);
 
     document.getElementById('commentaryDrawerCommentatorBtn').addEventListener('click', async (e) => {
       e.stopPropagation();
+      // גרירה משמעותית של המגירה שהתחילה על הכפתור הזה (ראו setupDrawerDragSurface למעלה) - לא גם toggle לרשימה
+      if (commentaryDrawerJustDragged) { commentaryDrawerJustDragged = false; return; }
       const listEl = document.getElementById('commentaryDrawerCommentatorList');
       if (listEl.classList.contains('open')) { closeCommentaryList(); return; }
       const v = commentaryDrawerVerse;
@@ -2157,9 +2198,10 @@
       const audio = document.getElementById('srtPlayer');
       if (audio.paused) audio.play().catch(() => {}); else audio.pause();
     });
-    // אלמנט עצמאי בתוך #commentaryDrawer (לא בתוך #userViewVerses או פס האחיזה) - אין גרירה
-    // שיכולה "לדלוף" לכפתור הזה, אז אין צורך לבדוק commentaryDrawerJustDragged כמו בכפתור הגדול.
+    // מאז שכל שטח המגירה נהיה משטח גרירה (ראו setupDrawerDragSurface(commentaryDrawer,...) למעלה) -
+    // גרירה משמעותית שהתחילה על הכפתור הזה בדיוק צריכה להתעלם מה-click שבא אחריה, כמו uvBigPlayBtn.
     document.getElementById('commentaryDrawerPlayBtn').addEventListener('click', () => {
+      if (commentaryDrawerJustDragged) { commentaryDrawerJustDragged = false; return; }
       const audio = document.getElementById('srtPlayer');
       if (audio.paused) audio.play().catch(() => {}); else audio.pause();
     });
