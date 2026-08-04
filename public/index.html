@@ -1584,6 +1584,10 @@
     }
 
     const UV_ANCHOR_RATIO = 0.35; // חלק מגובה ה-viewport שבו "יושבת" השורה הפעילה (0.5 = מרכז מדויק)
+    // הזזה קבועה למטה של כל אזור הפסוקים - הפסוק האחרון המוצג קרוב יותר למגירה, ולפסוק הראשון
+    // נשאר רווח גדול יותר לפני הכותרת מעליו. נכנס לחישוב העוגן וגם לחישוב חלון התצוגה (uvComputeDynamicWindow)
+    // כדי שגבולות הפסוקים המוצגים יתאימו למיקום הפיזי החדש.
+    const UV_ROW_AREA_SHIFT_PX = 50;
     // רווח קבוע שנשמר בין סוף uvSeekBar לראש מגירת הפירוש (ראו שימוש ב-uvPositionTrack) - בלי זה
     // ה-drawerCoverPx הגולמי נצמד לפס בדיוק כשהמגירה במצב open לגמרי, בלי שום מרווח.
     const UV_SEEKBAR_DRAWER_GAP_PX = 10;
@@ -1599,7 +1603,7 @@
       const viewport = document.getElementById('userViewVerses');
       const idx = (uvCurrentIdx === null || uvCurrentIdx < 0) ? 0 : uvCurrentIdx;
       const rowCenter = uvRowCenters[idx] != null ? uvRowCenters[idx] : 0;
-      let centerY = viewport.clientHeight * UV_ANCHOR_RATIO;
+      let centerY = viewport.clientHeight * UV_ANCHOR_RATIO + UV_ROW_AREA_SHIFT_PX;
       if (sequenceMode) {
         // אין להשאיר רווח ריק מעל אם אין מספיק פסוקים קודמים למלא אותו (למשל בתחילת השיעור) -
         // העוגן מוגבל לגובה התוכן שבאמת קיים מעל, לא לגובה קבוע
@@ -1681,7 +1685,7 @@
 
     function uvComputeDynamicWindow(idx) {
       const viewport = document.getElementById('userViewVerses');
-      const spaceAbove = viewport.clientHeight * UV_ANCHOR_RATIO;
+      const spaceAbove = viewport.clientHeight * UV_ANCHOR_RATIO + UV_ROW_AREA_SHIFT_PX;
       const spaceBelow = viewport.clientHeight - spaceAbove;
       let before = 0, usedAbove = 0;
       for (let i = idx - 1; i >= 0; i--) {
