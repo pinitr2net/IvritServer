@@ -783,11 +783,6 @@
   </div>
 
   <script>
-    // זמני: שימוש ב-localStorage מבוטל לגמרי באפליקציה (בכוונה, לפי בקשה מפורשת) - להחזיר בהמשך.
-    {
-      const noopStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {}, clear: () => {}, key: () => null, length: 0 };
-      Object.defineProperty(window, 'localStorage', { value: noopStorage, writable: false, configurable: true });
-    }
     let lastData = {};
     let lastVersesData = [];
     let lastTopicsData = [];
@@ -1860,8 +1855,7 @@
     // prefix -> label בעברית, נאסף מכל פעם שרשימת פרשנים נשלפה (לתצוגת כפתור בלי לשלוף רשימה מחדש) -
     // עם ערך זרוע מראש לברירת המחדל, כדי שהכפתור לא יראה "Steinsaltz" באנגלית לפני שהרשימה נפתחה ולו פעם אחת
     const commentatorLabels = new Map([['Steinsaltz', 'שטיינזלץ']]);
-    // localStorage מבוטל גלובלית באפליקציה (ראה ההערה למעלה) - sessionStorage לא מושפע ממנו,
-    // ונשאר אחרי רענון (גם אם לא אחרי סגירת הטאב, מספיק לצורך "נישאר עם הפרשן הזה")
+    // sessionStorage (לא localStorage) - נשאר אחרי רענון (גם אם לא אחרי סגירת הטאב, מספיק לצורך "נישאר עם הפרשן הזה")
     let commentaryDrawerCommentator = sessionStorage.getItem('commentaryCommentator') || 'Steinsaltz';
     let commentaryDrawerVerse = null;
 
@@ -1931,8 +1925,8 @@
       document.getElementById('commentaryDrawerCommentatorList').classList.remove('open');
     }
 
-    // מצב פתוח/סגור נשמר ב-sessionStorage (לא localStorage - כרגע מבוטל לגמרי, ראו למעלה)
-    // ושורד ריפרש של הטאב, כמו commentaryDrawerCommentator הקיים.
+    // מצב פתוח/סגור נשמר ב-sessionStorage (לא localStorage), ושורד ריפרש של הטאב,
+    // כמו commentaryDrawerCommentator הקיים.
     let commentaryDrawerClosed = sessionStorage.getItem('commentaryDrawerClosed') === '1';
 
     // מעדכן את התוכן בלבד - לכל מעבר פסוק (לחיצה, גלילה/מקלדת, או התקדמות טבעית של הניגון) -
