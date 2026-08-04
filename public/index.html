@@ -351,11 +351,15 @@
       direction: rtl;
       padding: 0.25rem 1.25rem 1.25rem;
       box-sizing: border-box;
+      /* מקור אמת יחיד לגובה ה"פס הבולט" (peek) - גם ל-.peek למטה וגם ל-DRAWER_PEEK_PX ב-JS
+         (נקרא עם getComputedStyle, ראו getDrawerPeekPx). מכוונן ידנית כאן בלבד - אין צורך לעדכן
+         עוד ערך במקביל, זה בדיוק מה שגרם בעבר לקפיצה קטנה בתחילת גרירה כששני המספרים לא היו זהים. */
+      --drawer-peek-px: 47px;
     }
     #commentaryDrawer.open { transform: translateY(0); }
     /* "סגורה" בתוך תצוגת המשתמש - לא נעלמת לגמרי כמו כשיוצאים מתצוגת המשתמש (translateY(100%)
        הבסיסי), אלא משאירה פס אחיזה בולט מציץ מעל תחתית המסך, לגרירה/לחיצה כדי לפתוח מחדש. */
-    #commentaryDrawer.peek { transform: translateY(calc(100% - 42px)); }
+    #commentaryDrawer.peek { transform: translateY(calc(100% - var(--drawer-peek-px))); }
     #commentaryDrawerHandle {
       position: relative;
       flex-shrink: 0;
@@ -377,7 +381,7 @@
     #commentaryDrawerHandle:active { cursor: grabbing; }
     /* מוצא מזרימת התוכן הרגילה (position:absolute, יחסית לקופסת #commentaryDrawer עצמה, שהיא
        positioned בזכות ה-fixed) ומוצמד כמעט לקצה העליון - כדי שהכפתור יופיע ויהיה לחיץ גם במצב
-       "סגור"/peek של המגירה (ראו #commentaryDrawer.peek ו-DRAWER_PEEK_PX), בלי לחכות שהמגירה תיפתח.
+       "סגור"/peek של המגירה (ראו #commentaryDrawer.peek ומשתנה --drawer-peek-px), בלי לחכות שהמגירה תיפתח.
        ברוחב מוגבל לתוכן בלבד (בלי left) כדי לא לחפוף לאזור התפיסה המורחב של פס האחיזה (#commentaryDrawerHandle::before). */
     #commentaryDrawerHeader {
       position: absolute;
@@ -454,7 +458,7 @@
     #commentaryDrawerRef { display: none; }
     /* margin-top מפצה על הוצאת #commentaryDrawerHeader מהזרימה (עכשיו position:absolute, ראו שם) -
        כדי שתחילת התוכן לא תיכנס מתחת לכפתור הבורר הצף בפינה. */
-    #commentaryDrawerBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-top: 1.4rem; font-size: 1.05rem; line-height: 1.6; color: #1e293b; }
+    #commentaryDrawerBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-top: 2.5rem; font-size: 1.05rem; line-height: 1.6; color: #1e293b; }
     #userViewTitle {
       padding-top: 10px;
       flex-shrink: 0;
@@ -669,7 +673,9 @@
       z-index: 2;
       padding: 0;
     }
-    .uv-big-play-btn.uv-visible { display: flex; }
+    /* הוסתר במכוון (CSS בלבד) - הפליי הגדול במרכז המסך נשאר קיים ב-DOM/JS (uvShowBigPlayBtn עדיין
+       מוסיף/מסיר את uv-visible), אבל הוחלף חזותית ע"י #commentaryDrawerPlayBtn שבמגירה. */
+    .uv-big-play-btn.uv-visible { display: none; }
     .uv-meter-fill {
       width: 100%;
       height: 100%;
@@ -2009,7 +2015,14 @@
     // גרירת פס האחיזה: המגירה עוקבת אחרי האצבע/עכבר בזמן אמת (transform ישיר, בלי transition) בין
     // "פתוחה" ל"פס בולט" (peek), ובשחרור "קופצת" לאחד משני המצבים בלבד לפי המיקום האחרון - אין מצב
     // ביניים קבוע. לחיצה קצרה בלי גרירה משמעותית פשוט הופכת את המצב הנוכחי (כמו הכפתור/החץ הישנים).
-    const DRAWER_PEEK_PX = 66; // חייב להתאים ל-calc(100% - 66px) ב-CSS של #commentaryDrawer.peek
+    // נקרא בזמן אמת מהמשתנה --drawer-peek-px שמוגדר על #commentaryDrawer עצמו (ראו שם) - לא קבוע
+    // כפול ב-JS, כדי שכיוונון ידני של הגובה ב-CSS לא ידרוש עדכון מקביל כאן (זו הייתה בדיוק הסיבה
+    // לקפיצה קטנה בתחילת גרירה כששני המספרים התפצלו).
+    function getDrawerPeekPx(drawer) {
+      const raw = getComputedStyle(drawer).getPropertyValue('--drawer-peek-px');
+      const px = parseFloat(raw);
+      return Number.isFinite(px) ? px : 40;
+    }
     // סף רגיש: כמה מהמרחק (0-1) מספיק למשוך כדי שהמגירה תיסגר/תיפתח, בכל כיוון בנפרד
     const DRAWER_CLOSE_DRAG_RATIO = 0.2;
     const DRAWER_OPEN_DRAG_RATIO = 0.2;
@@ -2035,7 +2048,7 @@
         commentaryDrawerDragAllowTapToggle = allowTapToggle;
         commentaryDrawerDragStartedClosed = commentaryDrawerClosed;
         commentaryDrawerDragStartY = e.clientY;
-        commentaryDrawerDragStartOffset = commentaryDrawerClosed ? drawer.getBoundingClientRect().height - DRAWER_PEEK_PX : 0;
+        commentaryDrawerDragStartOffset = commentaryDrawerClosed ? drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer) : 0;
         commentaryDrawerDragOffset = commentaryDrawerDragStartOffset;
         el.setPointerCapture(e.pointerId);
         drawer.style.transition = 'none';
@@ -2044,7 +2057,7 @@
         if (!commentaryDrawerDragging) return;
         const delta = e.clientY - commentaryDrawerDragStartY;
         if (Math.abs(delta) > 5) commentaryDrawerDragMoved = true;
-        const maxOffset = drawer.getBoundingClientRect().height - DRAWER_PEEK_PX;
+        const maxOffset = drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer);
         commentaryDrawerDragOffset = Math.min(maxOffset, Math.max(0, commentaryDrawerDragStartOffset + delta));
         drawer.style.transform = `translateY(${commentaryDrawerDragOffset}px)`;
       });
@@ -2053,7 +2066,7 @@
         commentaryDrawerDragging = false;
         drawer.style.transition = '';
         drawer.style.transform = '';
-        const maxOffset = drawer.getBoundingClientRect().height - DRAWER_PEEK_PX;
+        const maxOffset = drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer);
         // בלי גרירה משמעותית - לחיצה פשוטה הופכת את המצב (רק אם allowTapToggle, כלומר פס האחיזה);
         // עם גרירה - סף נמוך ורגיש, שונה לכל כיוון
         // (התחלה מפתוח דורשת רק DRAWER_CLOSE_DRAG_RATIO כדי לסגור; התחלה מסגור דורשת רק DRAWER_OPEN_DRAG_RATIO כדי לפתוח)
