@@ -104,6 +104,7 @@ function resolveLectureFiles(slug) {
   const captionsFile = pick([`${filePrefix}.corrected.srt`, `${filePrefix}.srt`, `${filePrefix}.verses.srt`]);
   const refsFile = has(`${filePrefix}.refs.srt`) ? `${filePrefix}.refs.srt` : null;
   const chaptersFile = has(`${filePrefix}.chapters.srt`) ? `${filePrefix}.chapters.srt` : null;
+  const summaryFile = has(`${filePrefix}.summary.srt`) ? `${filePrefix}.summary.srt` : null;
   const metaFile = has(`${filePrefix}.meta.json`) ? `${filePrefix}.meta.json` : null;
   const audioFile = files.find(f => f.startsWith(`${filePrefix}.`) && AUDIO_EXTS.includes(path.extname(f).toLowerCase()));
 
@@ -118,6 +119,7 @@ function resolveLectureFiles(slug) {
     captionsPath: path.join(dir, captionsFile),
     refsPath: path.join(dir, refsFile),
     chaptersPath: chaptersFile ? path.join(dir, chaptersFile) : null,
+    summaryPath: summaryFile ? path.join(dir, summaryFile) : null,
   };
 }
 
@@ -525,7 +527,12 @@ async function buildLectureVerseData(lecture) {
 
   const srt = fs.readFileSync(lecture.captionsPath, 'utf8');
 
-  return { srt, verses, complete, ...(topics !== undefined && { topics }) };
+  let summarySrt;
+  if (lecture.summaryPath) {
+    summarySrt = fs.readFileSync(lecture.summaryPath, 'utf8');
+  }
+
+  return { srt, verses, complete, ...(topics !== undefined && { topics }), ...(summarySrt !== undefined && { summarySrt }) };
 }
 
 app.get('/lecture/*slug/data.json', async (req, res) => {

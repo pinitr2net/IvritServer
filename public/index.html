@@ -440,7 +440,7 @@
     #commentaryDrawerRef { display: none; }
     /* margin-top מפצה על הוצאת #commentaryDrawerHeader מהזרימה (עכשיו position:absolute, ראו שם) -
        כדי שתחילת התוכן לא תיכנס מתחת לכפתור הבורר הצף בפינה. */
-    #commentaryDrawerBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-top: 2.5rem; font-size: 1.05rem; line-height: 1.6; color: #1e293b; }
+    #commentaryDrawerBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-top: 1.5rem; font-size: 1.05rem; line-height: 1.6; color: #1e293b; }
     #userViewTitle {
       padding-top: 10px;
       flex-shrink: 0;
@@ -817,6 +817,9 @@
     let srtSegments = [];
     let userViewActive = false;
     let lastCaptionSegId = null;
+    // הסבר הרב בשיעור (summary.srt) - ממופה לפי זמן ניגון גולמי, לא לפי פסוק (ראו commentaryDrawerCommentator)
+    let summarySegments = [];
+    let lastSummarySegId = null;
     let uvVerses = [];
     let uvCurrentIdx = null; // null = not yet rendered; forces an initial render even if idx computes to -1
     // מוצהר כאן (מוקדם) ולא רק ליד מאזיני ה-play/pause שמשתמשים בו - applyMeterVisibility (רחוק למטה)
@@ -1065,6 +1068,8 @@
       lastData = {};
       lastVersesData = [];
       srtSegments = [];
+      summarySegments = [];
+      lastSummarySegId = null;
       const pr = document.getElementById('parallelResult');
       pr.innerHTML = '';
       pr.style.display = 'none';
@@ -1146,6 +1151,10 @@
         lastData.title = data.title || '';
         document.getElementById('userViewTitle').textContent = sequenceMode ? '' : lastData.title;
         srtSegments = parseSrt(data.srt);
+        summarySegments = data.summarySrt ? parseSrt(data.summarySrt) : [];
+        if (summarySegments.length && !sessionStorage.getItem('commentaryCommentator')) {
+          commentaryDrawerCommentator = RABBI_COMMENTATOR_PREFIX;
+        }
         suppressCardHighlighting = !isDebug;
         setupAudioPlayer(data.audioUrl);
         if (!rawAudioMode) setupLecturePositionPersistence(slug);
@@ -1176,6 +1185,10 @@
           lastData.title = data.title || '';
           document.getElementById('userViewTitle').textContent = sequenceMode ? '' : lastData.title;
           srtSegments = parseSrt(data.srt);
+          summarySegments = data.summarySrt ? parseSrt(data.summarySrt) : [];
+          if (summarySegments.length && !sessionStorage.getItem('commentaryCommentator')) {
+            commentaryDrawerCommentator = RABBI_COMMENTATOR_PREFIX;
+          }
           suppressCardHighlighting = true;
           setupAudioPlayer(data.audioUrl);
           renderParallelVerses({ verses: data.verses, complete: data.complete, topics: data.topics });
@@ -1950,9 +1963,12 @@
     const resolvedCommentaryChapters = new Map(); // אותו key -> התוצאה שנפתרה בפועל
     const commentatorsChapterCache = new Map(); // key: book|chapter -> Promise<{verseNum: [{prefix,label}]}>
     const resolvedCommentatorsChapters = new Map();
+    // פרשן מקומי מיוחד - הסבר הרב מתוך summary.srt (ראו summarySegments), לא נשלף מספריא כלל
+    const RABBI_COMMENTATOR_PREFIX = '__rabbiSummary__';
+    const RABBI_COMMENTATOR_LABEL = 'הרב';
     // prefix -> label בעברית, נאסף מכל פעם שרשימת פרשנים נשלפה (לתצוגת כפתור בלי לשלוף רשימה מחדש) -
     // עם ערך זרוע מראש לברירת המחדל, כדי שהכפתור לא יראה "Rashi" באנגלית לפני שהרשימה נפתחה ולו פעם אחת
-    const commentatorLabels = new Map([['Rashi', 'רש"י']]);
+    const commentatorLabels = new Map([['Rashi', 'רש"י'], [RABBI_COMMENTATOR_PREFIX, RABBI_COMMENTATOR_LABEL]]);
     // sessionStorage (לא localStorage) - נשאר אחרי רענון (גם אם לא אחרי סגירת הטאב, מספיק לצורך "נישאר עם הפרשן הזה")
     let commentaryDrawerCommentator = sessionStorage.getItem('commentaryCommentator') || 'Rashi';
     let commentaryDrawerVerse = null;
@@ -2010,6 +2026,15 @@
       const btnEl = document.getElementById('commentaryDrawerCommentatorBtn');
       refEl.textContent = truncatePreview(v.text);
       btnEl.textContent = `${commentatorLabels.get(commentaryDrawerCommentator) || commentaryDrawerCommentator} ▾`;
+
+      if (commentaryDrawerCommentator === RABBI_COMMENTATOR_PREFIX) {
+        // מקומי, לא מספריא - לפי זמן ניגון נוכחי מתוך summarySegments (ראו summary.srt), לא לפי פסוק
+        const audio = document.getElementById('srtPlayer');
+        const t = pendingRestoreTime != null ? pendingRestoreTime : audio.currentTime;
+        const seg = summarySegments.find(s => t >= s.start && t < s.end);
+        bodyEl.textContent = seg ? seg.text : 'אין פירוש זמין לפסוק זה מהפרשן הזה';
+        return;
+      }
 
       const data = resolvedCommentaryChapters.get(`${v.book}|${v.chapterNum}|${commentaryDrawerCommentator}`);
       if (!data) {
@@ -2204,14 +2229,18 @@
       const key = `${v.book}|${v.chapterNum}`;
       const cached = resolvedCommentatorsChapters.get(key);
       if (cached) {
-        renderCommentaryOptions(cached[v.verseNum] || []);
+        renderCommentaryOptions(withRabbiOption(cached[v.verseNum] || []));
         return;
       }
       listEl.innerHTML = '<div class="commentary-option-loading">טוען...</div>';
       const data = await fetchCommentatorsChapter(v);
       if (v !== commentaryDrawerVerse) return; // המשתמש כבר עבר לפסוק אחר בזמן ההמתנה לתשובה
-      renderCommentaryOptions(data[v.verseNum] || []);
+      renderCommentaryOptions(withRabbiOption(data[v.verseNum] || []));
     });
+    // מוסיפה את "הרב" (הסבר מקומי מ-summary.srt, ראו summarySegments) בראש הרשימה - רק לשיעורים שיש להם קובץ כזה
+    function withRabbiOption(list) {
+      return summarySegments.length ? [{ prefix: RABBI_COMMENTATOR_PREFIX, label: RABBI_COMMENTATOR_LABEL }, ...list] : list;
+    }
     function renderCommentaryOptions(list) {
       document.getElementById('commentaryDrawerCommentatorList').innerHTML = list.map(c =>
         `<button class="commentary-option${c.prefix === commentaryDrawerCommentator ? ' active' : ''}" data-commentator="${escHtml(c.prefix)}">${escHtml(c.label)}</button>`
@@ -2228,6 +2257,7 @@
       commentaryDrawerCommentator = prefix;
       sessionStorage.setItem('commentaryCommentator', prefix);
       renderCommentaryDrawer();
+      if (prefix === RABBI_COMMENTATOR_PREFIX) return; // מקומי מ-summary.srt - אין מה לשלוף מספריא
       const v = commentaryDrawerVerse;
       if (v) loadCommentaryForDrawer(v, prefix);
     });
@@ -2346,6 +2376,17 @@
         if (seg.id !== lastCaptionSegId) { captionEl.textContent = seg.text; lastCaptionSegId = seg.id; }
       } else if (lastCaptionSegId !== null) {
         captionEl.textContent = ''; lastCaptionSegId = null;
+      }
+
+      // הסבר הרב (summary.srt) ממופה לפי זמן ניגון, לא לפי פסוק - הגבולות לא מתלכדים עם uvVerses,
+      // אז חייבים בדיקה עצמאית כאן בכל tick (לא רק במעבר idx למטה)
+      if (summarySegments.length) {
+        const summarySeg = summarySegments.find(s => t >= s.start && t < s.end);
+        const summarySegId = summarySeg ? summarySeg.id : null;
+        if (summarySegId !== lastSummarySegId) {
+          lastSummarySegId = summarySegId;
+          if (commentaryDrawerCommentator === RABBI_COMMENTATOR_PREFIX) renderCommentaryDrawer();
+        }
       }
 
       let idx = -1;
