@@ -357,6 +357,10 @@
       --drawer-peek-px: 60px;
     }
     #commentaryDrawer.open { transform: translateY(0); }
+    /* עצירת גודל שלישית - קטנה ב-30px קבועים מהמצב הפתוח. נגישה רק בגרירה (ראו commentaryDrawerDragEndHandler
+       ב-JS) - אין כפתור נפרד. translateY, לא height, כדי להתאים בדיוק לאותו מנגנון גרירה (transform ישיר)
+       שכבר קיים ל-peek למטה - הגרירה בזמן אמת "עוברת" בעדה בדרך בלי שינוי מיוחד. */
+    #commentaryDrawer.small { transform: translateY(30px); }
     /* "סגורה" בתוך תצוגת המשתמש - לא נעלמת לגמרי כמו כשיוצאים מתצוגת המשתמש (translateY(100%)
        הבסיסי), אלא משאירה פס אחיזה בולט מציץ מעל תחתית המסך, לגרירה/לחיצה כדי לפתוח מחדש. */
     #commentaryDrawer.peek { transform: translateY(calc(100% - var(--drawer-peek-px))); }
@@ -394,29 +398,6 @@
          (rubber-band) אזור טבעי - נראה כמו "הגענו לסוף הגלילה" ומתחרה בגרירת המגירה שלנו (JS),
          שממילא ממתינה ל-touch-action:none כדי לקבל בלעדיות על המחווה. */
       touch-action: none;
-    }
-    /* כמו commentaryDrawerHeader (position:absolute יחסית ל-#commentaryDrawer, גלוי גם ב-peek) אבל
-       בצד השני - נראה כמו .uv-big-play-btn (עיגול כתום) ומתנהג כמוהו (toggle play/pause), אבל
-       לעולם לא נעלם (בניגוד ל-uv-big-play-btn שמוצג רק לפני הפסוק הראשון/לפני שהניגון התחיל). */
-    #commentaryDrawerPlayBtn {
-      position: absolute;
-      top: 0.4rem;
-      left: 1.25rem;
-      width: 2.4rem;
-      height: 2.4rem;
-      border-radius: 50%;
-      border: none;
-      background: #f5a623;
-      color: #fff;
-      font-size: 1.05rem;
-      line-height: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      z-index: 2;
-      padding: 0;
-      touch-action: none; /* אותה סיבה כמו #commentaryDrawerHeader למעלה */
     }
     #commentaryDrawerSelector { position: relative; }
     .commentary-tab {
@@ -670,26 +651,30 @@
       pointer-events: none;
       user-select: none;
     }
-    .uv-big-play-btn {
-      display: none;
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translateX(-50%);
-      width: 4rem; height: 4rem;
+    /* שורה וירטואלית ראשונה במסילה (ילד רגיל של #uvTrack, ממוקמת לפני כל הפסוקים בפועל ב-DOM) - "פליי
+       לפני הפסוק הראשון". יורשת את כל עיצוב .uv-row הרגיל (opacity לפי active/history + טרנזיציה).
+       קריטי: אינה משפיעה בכלל על עוגן המיקום של הפסוק הראשון (ראו uvPositionTrack - העוגן ממשיך
+       להתבסס רק על uvRowCenters של הפסוקים האמיתיים, בלי שינוי) - היא רק תוכן נוסף שנוסף מעל פסוק 0
+       בזרימת המסמך, ולכן "יושבת" מעליו במסך (גבוה יותר), בלי להזיז את פסוק 0 ממקומו הרגיל. בזכות זה
+       שהיא חלק מזרימת המסמך הרגילה בתוך uvTrack (לא position:absolute), היא גם "גוללת למעלה" באופן
+       טבעי יחד עם שאר השורות כשה-transform של uvTrack מתעדכן, בדיוק כמו שורה קודמת רגילה. מוחרגת
+       בכוונה מ-uvRowEls/uvRowCenters (ראו querySelector עם :not ב-renderUserView) כדי לא להזיז את
+       אינדקסי הפסוקים האמיתיים. */
+    .uv-play-row-btn {
+      width: 3rem;
+      height: 3rem;
       border-radius: 50%;
       border: none;
       background: #f5a623;
       color: #fff;
-      font-size: 1.6rem;
+      font-size: 1.2rem;
       line-height: 1;
-      align-items: center; justify-content: center;
-      cursor: pointer;
-      z-index: 2;
-      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none; /* הלחיצה מטופלת ע"י מאזין ה-click על כל השורה (#uvTrack), כמו כל .uv-row אחרת */
     }
-    /* הוסתר במכוון (CSS בלבד) - הפליי הגדול במרכז המסך נשאר קיים ב-DOM/JS (uvShowBigPlayBtn עדיין
-       מוסיף/מסיר את uv-visible), אבל הוחלף חזותית ע"י #commentaryDrawerPlayBtn שבמגירה. */
-    .uv-big-play-btn.uv-visible { display: none; }
+    .uv-play-row .uv-row-text { display: flex; justify-content: center; }
     .uv-meter-fill {
       width: 100%;
       height: 100%;
@@ -808,7 +793,6 @@
         <div id="uvSeekBarHandle"></div>
       </div>
       <div id="userViewVerses">
-        <button type="button" class="uv-big-play-btn" id="uvBigPlayBtn" aria-label="נגן/השהה"></button>
         <div id="uvDrawerShift">
           <div id="uvTrack"></div>
         </div>
@@ -819,7 +803,6 @@
 
   <div id="commentaryDrawer">
     <div id="commentaryDrawerHandle"></div>
-    <button id="commentaryDrawerPlayBtn" type="button" aria-label="נגן/השהה"></button>
     <div id="commentaryDrawerHeader">
       <div id="commentaryDrawerSelector">
         <button id="commentaryDrawerCommentatorBtn" class="commentary-tab" type="button"></button>
@@ -867,6 +850,9 @@
     let uvGestureCooldown = false;
     let uvTouchStartY = null;
     let uvRowEls = [];
+    // שורת ה"פליי" הוירטואלית שלפני הפסוק הראשון (ראו .uv-play-row ב-CSS) - נקבעת מחדש בכל renderUserView.
+    // מוחרגת בכוונה מ-uvRowEls (ראו querySelector עם :not שם) כדי לא להזיז את אינדקסי הפסוקים האמיתיים.
+    let uvPlayRowEl = null;
     let uvRowChapterEls = [];
     let uvRowCenters = [];
     let uvMeterRowIdx = null;
@@ -911,16 +897,7 @@
       }
       uvMeterRowIdx = null;
       const beforeFirstVerse = uvCurrentIdx !== null && uvCurrentIdx < 0;
-      // כפתור PLAY גדול מוצג לפני שהניגון בפועל אי-פעם קרה (audioEverPlayed) - כרמז "תלחץ כאן" יחיד -
-      // וגם בכל פעם שחוזרים למצב "לפני הפסוק הראשון" (למשל גרירת פס ה-seek בחזרה לזמן 0), כי אז אין
-      // שורה "נוכחית" שהפלאש שלה יכול להיצמד אליה. לא אפשר להסתמך רק על uvCurrentIdx===null בשביל
-      // הרמז הראשוני: הוא מתמוטט ל-idx=-1 כבר ב-updateUserViewPlayback הראשון שרץ אוטומטית
-      // ב-toggleUserView (בלי אינטראקציה בכלל, כי פסוק 0 לרוב מתחיל אחרי זמן 0) - audioEverPlayed
-      // הופך ל-true רק ב-'play' event אמיתי ונשאר true לצמיתות עד רענון.
-      // חריג: positionRestoredNonZero (נכנסנו לשיעור עם מיקום שמור לא-0) - שם אין טעם ברמז "תלחץ
-      // כאן כדי להתחיל" כי כבר באמצע השיעור, לא בהתחלה שלו. עדיין מוצג ב-beforeFirstVerse (למשל
-      // גרירת הסימון חזרה ל-0), כי זה מצב אמיתי של "לפני הפסוק הראשון" גם בשיעור עם מיקום משוחזר.
-      uvShowBigPlayBtn(beforeFirstVerse || (!audioEverPlayed && !positionRestoredNonZero));
+      uvUpdatePlayRowBtn();
       if (!showMeter || uvCurrentIdx === null) return;
       const targetIdx = beforeFirstVerse ? 0 : uvCurrentIdx;
       const row = uvRowEls[targetIdx];
@@ -959,23 +936,13 @@
       el._uvFlashTimer = setTimeout(() => el.classList.remove('uv-flash-visible'), 600);
     }
 
-    function uvShowBigPlayBtn(show) {
-      const btn = document.getElementById('uvBigPlayBtn');
-      if (!btn) return;
-      btn.classList.toggle('uv-visible', show);
-      if (show) uvUpdateBigPlayBtn();
-    }
-
-    function uvUpdateBigPlayBtn() {
-      const btn = document.getElementById('uvBigPlayBtn');
-      if (!btn || !btn.classList.contains('uv-visible')) return;
-      const audio = document.getElementById('srtPlayer');
-      btn.textContent = audio.paused ? '▶' : '⏸';
-    }
-
-    // כמו uvUpdateBigPlayBtn, אבל בלי בדיקת uv-visible - הכפתור הזה (במגירת הפירוש) מוצג לצמיתות.
-    function uvUpdateDrawerPlayBtn() {
-      const btn = document.getElementById('commentaryDrawerPlayBtn');
+    // מעדכן את סמל הפעולה (▶/⏸) על הכפתור העגול שבתוך שורת ה"פליי" הוירטואלית שלפני הפסוק הראשון
+    // (ראו .uv-play-row ב-CSS ואת ה-markup שלה ב-renderUserView). אין show/hide נפרד לשורה הזו -
+    // הנראות שלה בפועל נקבעת רק ע"י ה-opacity הרגיל של .uv-row (active/history/hidden), בדיוק כמו
+    // כל שורה אחרת - ראו uvApplyVisibleWindow.
+    function uvUpdatePlayRowBtn() {
+      if (!uvPlayRowEl) return;
+      const btn = uvPlayRowEl.querySelector('.uv-play-row-btn');
       if (!btn) return;
       const audio = document.getElementById('srtPlayer');
       btn.textContent = audio.paused ? '▶' : '⏸';
@@ -1126,6 +1093,7 @@
       uvCurrentIdx = null;
       uvPauseHandledIdx = null;
       uvRowEls = [];
+      uvPlayRowEl = null;
       uvRowChapterEls = [];
       uvRowCenters = [];
       uvMeterRowIdx = null;
@@ -1485,8 +1453,7 @@
       document.querySelector('.card').style.display = userViewActive ? 'none' : '';
       document.getElementById('userView').style.display = userViewActive ? 'flex' : 'none';
       document.getElementById('stickyPlayer').style.display = userViewActive ? 'none' : 'block';
-      document.getElementById('commentaryDrawer').classList.toggle('open', userViewActive && !commentaryDrawerClosed);
-      document.getElementById('commentaryDrawer').classList.toggle('peek', userViewActive && commentaryDrawerClosed);
+      applyCommentaryDrawerState(userViewActive);
       const fab = document.getElementById('viewToggleFab');
       fab.textContent = userViewActive ? '🛠️' : '📖';
       fab.title = userViewActive ? 'חזרה לתצוגת ניפוי' : 'תצוגת משתמש';
@@ -1544,7 +1511,15 @@
       uvChapterBadgeIdx = null;
       const track = document.getElementById('uvTrack');
       const rowTag = linkerMode ? 'a' : 'div';
-      track.innerHTML = uvVerses.map((v, i) => `
+      // שורת ה"פליי" הוירטואלית (ראו .uv-play-row ב-CSS) - data-idx="-1" כדי שתשתתף במאזין ה-click
+      // המשותף של #uvTrack בדיוק כמו שורת פסוק רגילה (uvSeekTo/uvCurrentIdx כבר תומכים ב-idx=-1
+      // כ"לפני הפסוק הראשון"). לא נכללת ב-'.uv-row' שנבחר ל-uvRowEls למטה (ראו :not) כדי לא להזיז
+      // את אינדקסי הפסוקים האמיתיים.
+      track.innerHTML = `
+        <div class="uv-row uv-play-row" data-idx="-1">
+          <span class="uv-row-text"><span class="uv-play-row-btn" aria-hidden="true">▶</span></span>
+          <span class="uv-row-spacer" aria-hidden="true"></span>
+        </div>` + uvVerses.map((v, i) => `
         <${rowTag} class="uv-row" data-idx="${i}"${linkerMode && v.sefariaUrl ? ` href="${escHtml(v.sefariaUrl)}" target="_blank" rel="noopener noreferrer"` : ''}>
           <span class="uv-num-badge">
             <span class="uv-chapter-num"></span>
@@ -1556,21 +1531,20 @@
           <span class="uv-play-state-icon" aria-hidden="true"></span>
           <div class="uv-meter"><div class="uv-meter-fill"></div><div class="uv-meter-handle"></div></div>
         </${rowTag}>`).join('');
-      uvRowEls = [...track.querySelectorAll('.uv-row')];
+      uvPlayRowEl = track.querySelector('.uv-play-row');
+      uvRowEls = [...track.querySelectorAll('.uv-row:not(.uv-play-row)')];
       uvRowChapterEls = uvRowEls.map(el => el.querySelector('.uv-chapter-num'));
       uvMeasureRows();
       uvPositionTrack();
+      uvUpdatePlayRowBtn();
       if (sequenceMode) {
         uvCurrentChapterNum = null;
         uvUpdateStickyChapter(uvCurrentIdx);
       }
-      // מגירת הפירוש מאותחלת כאן לפסוק הראשון, במצב פתוח/סגור שנשמר מה-session הקודם
+      // מגירת הפירוש מאותחלת כאן לפסוק הראשון, במצב שנשמר מה-session הקודם
       if (uvVerses.length) {
         updateCommentaryDrawerForVerse(uvVerses[0]);
-        if (commentaryDrawerClosed) {
-          document.getElementById('commentaryDrawer').classList.remove('open');
-          document.getElementById('commentaryDrawer').classList.add('peek');
-        }
+        applyCommentaryDrawerState(true);
       }
     }
 
@@ -1608,6 +1582,9 @@
       if (!uvRowCenters.length) return;
       const track = document.getElementById('uvTrack');
       const viewport = document.getElementById('userViewVerses');
+      // העוגן ממשיך להתבסס רק על פסוק 0 (לא על uvPlayRowEl) גם לפני הפסוק הראשון - שורת ה-play
+      // הוירטואלית היא רק תוכן נוסף שיושב מעליו בזרימת המסמך (ראו .uv-play-row ב-CSS), לא משנה את
+      // מיקומו של פסוק 0 עצמו.
       const idx = (uvCurrentIdx === null || uvCurrentIdx < 0) ? 0 : uvCurrentIdx;
       const rowCenter = uvRowCenters[idx] != null ? uvRowCenters[idx] : 0;
       let centerY = viewport.clientHeight * UV_ANCHOR_RATIO + UV_ROW_AREA_SHIFT_PX;
@@ -1627,9 +1604,6 @@
       const drawerCoverPx = uvGetDrawerCoverPx(viewport.getBoundingClientRect());
       const drawerShiftPx = -drawerCoverPx * UV_ANCHOR_RATIO;
       document.getElementById('uvDrawerShift').style.transform = `translateY(${drawerShiftPx}px)`;
-      // כפתור ה-play/pause הגדול הוא אח של uvDrawerShift (לא בתוכו, כי uvTrack עובר בו innerHTML
-      // מלא) - מקבל את אותה הזזה ידנית כדי לעלות יחד עם הפסוקים כשהמגירה נפתחת
-      document.getElementById('uvBigPlayBtn').style.transform = `translateX(-50%) translateY(${drawerShiftPx}px)`;
 
       // פס הגרירה (uvSeekBar) נמתח כברירת מחדל לכל גובה #userViewMiddle - מודדים ישירות מול המיקום
       // האמיתי של ראש המגירה (getBoundingClientRect, לא drawerCoverPx שמחושב יחסית ל-margin-bottom
@@ -1668,6 +1642,20 @@
       uvRowEls.forEach(el => el.classList.remove('uv-active'));
       const activeEl = idx !== null ? uvRowEls[idx] : undefined;
       if (activeEl) activeEl.classList.add('uv-active');
+
+      // שורת ה"פליי" הוירטואלית (uvPlayRowEl, לפני הפסוק הראשון) מקבלת בדיוק את אותם כללי
+      // active/history כמו כל שורה - "נוכחית" (בהירה) כל עוד עוד לא הגענו לפסוק הראשון (idx<0),
+      // ונשארת גלויה עמומה כ"שורה קודמת" רגילה כל עוד prevVersesCount עדיין "רואה" אותה מהפסוק
+      // הנוכחי (בדיוק כמו שכל פסוק קודם אמיתי היה נשאר גלוי), ואז מוסתרת - כך שהיא "גוללת למעלה"
+      // ונעלמת באותו קצב בדיוק כמו שורה רגילה שהופכת מ"נוכחית" ל"היסטוריה". מפושט במכוון: לא
+      // משתמש בחלון הדינמי של sequenceMode (uvComputeDynamicWindow) בשביל האלמנט הבודד הזה - זה
+      // מצב קצה נדיר (רק ממש בתחילת שיעור), לא שווה את המורכבות הנוספת.
+      if (uvPlayRowEl) {
+        const beforeFirstVerse = idx !== null && idx < 0;
+        uvPlayRowEl.classList.toggle('uv-active', beforeFirstVerse);
+        const stillWithinPrevWindow = idx !== null && idx >= 0 && idx < prevVersesCount;
+        uvPlayRowEl.classList.toggle('uv-hidden-hist', !(beforeFirstVerse || stillWithinPrevWindow));
+      }
 
       const badgeIdx = (idx === null || sequenceMode) ? null : Math.max(idx, 0);
       if (uvChapterBadgeIdx !== badgeIdx) {
@@ -1826,8 +1814,8 @@
       if (uvPauseWatchRaf !== null) { cancelAnimationFrame(uvPauseWatchRaf); uvPauseWatchRaf = null; }
     }
 
-    document.getElementById('srtPlayer').addEventListener('play', () => { audioEverPlayed = true; uvUpdatePlayStateIcon(); uvUpdateBigPlayBtn(); uvUpdateDrawerPlayBtn(); requestWakeLock(); });
-    document.getElementById('srtPlayer').addEventListener('pause', () => { uvUpdatePlayStateIcon(); uvUpdateBigPlayBtn(); uvUpdateDrawerPlayBtn(); releaseWakeLock(); });
+    document.getElementById('srtPlayer').addEventListener('play', () => { audioEverPlayed = true; uvUpdatePlayStateIcon(); uvUpdatePlayRowBtn(); requestWakeLock(); });
+    document.getElementById('srtPlayer').addEventListener('pause', () => { uvUpdatePlayStateIcon(); uvUpdatePlayRowBtn(); releaseWakeLock(); });
 
     // Wake Lock: מונע מהמסך להיכבות/להינעל בזמן ניגון (בלי נגיעה במסך). ה-wake lock משתחרר
     // אוטומטית ע"י הדפדפן כשהעמוד עובר לרקע (טאב אחר/מסך ננעל) - צריך לבקש אותו מחדש
@@ -1850,11 +1838,12 @@
     // uvSeekTo לא נקרא כלל - מעירים את הנגן גם על כל אינטראקציה ראשונה בעמוד.
     document.addEventListener('pointerdown', (e) => {
       if (audioEverPlayed) return;
-      // כפתור ה-play הגדול כבר עושה play/pause toggle בעצמו לפי audio.paused - ה"העירו" הגלובלי הזה
-      // כבר הופך את paused ל-false ברגע ש-play() נקרא (סינכרוני, לפי הספק), עוד לפני שאירוע ה-click
-      // של הכפתור מגיע להריץ את ה-toggle שלו - ואז ה-toggle רואה paused=false וקורא מיד ל-pause()
-      // (לחיצה ראשונה "לא עובדת"). לחיצה על הכפתור עצמו היא כבר אינטראקציה אמיתית שתפעיל play() משלה.
-      if (e.target.closest('#uvBigPlayBtn') || e.target.closest('#commentaryDrawerPlayBtn')) return;
+      // שורת ה-play הוירטואלית (.uv-play-row) כבר עושה play/pause toggle בעצמה (מאזין ה-click על
+      // #uvTrack) לפי audio.paused - ה"העירו" הגלובלי הזה כבר הופך את paused ל-false ברגע ש-play()
+      // נקרא (סינכרוני, לפי הספק), עוד לפני שאירוע ה-click מגיע להריץ את ה-toggle שלה - ואז ה-toggle
+      // רואה paused=false וקורא מיד ל-pause() (לחיצה ראשונה "לא עובדת"). לחיצה על השורה עצמה היא כבר
+      // אינטראקציה אמיתית שתפעיל play() משלה.
+      if (e.target.closest('.uv-play-row')) return;
       const audio = document.getElementById('srtPlayer');
       audio.play().catch(() => {});
       audio.pause(); // רק "העירו" - לא אמור להשאיר ניגון בפועל (ראו uvSeekTo לאותה תבנית)
@@ -2034,42 +2023,49 @@
       document.getElementById('commentaryDrawerCommentatorList').classList.remove('open');
     }
 
-    // מצב פתוח/סגור נשמר ב-sessionStorage (לא localStorage), ושורד ריפרש של הטאב,
-    // כמו commentaryDrawerCommentator הקיים.
-    let commentaryDrawerClosed = sessionStorage.getItem('commentaryDrawerClosed') === '1';
+    // מצב/גודל המגירה - שלוש עצירות: 'open' (מלא), 'small' (קטן ב-30px קבועים - נגיש רק בגרירה,
+    // אין כפתור נפרד, ראו commentaryDrawerDragEndHandler למטה), 'peek' (פס בולט בלבד, ראו CSS).
+    // נשמר ב-sessionStorage (לא localStorage), ושורד ריפרש של הטאב, כמו commentaryDrawerCommentator הקיים.
+    const DRAWER_STATES = ['open', 'small', 'peek'];
+    function normalizeDrawerState(v) { return DRAWER_STATES.includes(v) ? v : 'open'; }
+    let commentaryDrawerState = normalizeDrawerState(sessionStorage.getItem('commentaryDrawerState'));
+
+    // מחילה את קלאס המצב המתאים על #commentaryDrawer עצמו. active=false (תצוגת המשתמש לא פעילה)
+    // לא מחיל אף קלאס - בדיוק כמו userViewActive && ... הישן.
+    function applyCommentaryDrawerState(active) {
+      const el = document.getElementById('commentaryDrawer');
+      el.classList.toggle('open', active && commentaryDrawerState === 'open');
+      el.classList.toggle('small', active && commentaryDrawerState === 'small');
+      el.classList.toggle('peek', active && commentaryDrawerState === 'peek');
+    }
 
     // מעדכן את התוכן בלבד - לכל מעבר פסוק (לחיצה, גלילה/מקלדת, או התקדמות טבעית של הניגון) -
     // המגירה מוצגת תמיד כל עוד תצוגת המשתמש פעילה, אין יותר מצב "סגור" נפרד מ"גודל קטן".
-    // בקשת הפירוש מספריא נשלחת רק כשהמגירה פתוחה בפועל (לא ב-peek) - אין טעם למשוך פירוש
-    // שהמשתמש לא רואה; showCommentaryDrawerBack משלימה את הבקשה לפסוק הנוכחי כשהמגירה נפתחת.
+    // בקשת הפירוש מספריא נשלחת רק כשהמגירה פתוחה בפועל ('open'/'small', לא 'peek') - אין טעם למשוך
+    // פירוש שהמשתמש לא רואה; setCommentaryDrawerState משלימה את הבקשה לפסוק הנוכחי כשחוזרים מ-peek.
     function updateCommentaryDrawerForVerse(v) {
       commentaryDrawerVerse = v;
       renderCommentaryDrawer(); // אם כבר יש קאש לפרק/פרשן הזה - מוצג מיד, בלי "טוען..."
-      if (!commentaryDrawerClosed) loadCommentaryForDrawer(v, commentaryDrawerCommentator);
+      if (commentaryDrawerState !== 'peek') loadCommentaryForDrawer(v, commentaryDrawerCommentator);
     }
 
-    // "סוגרת" את המגירה - במקום להיעלם לגמרי, נשארת ב"פס בולט" (peek, ראו CSS) לגרירה/לחיצה כדי לפתוח חזרה
-    function hideCommentaryDrawer() {
-      closeCommentaryList();
-      commentaryDrawerClosed = true;
-      sessionStorage.setItem('commentaryDrawerClosed', '1');
-      document.getElementById('commentaryDrawer').classList.remove('open');
-      document.getElementById('commentaryDrawer').classList.add('peek');
-    }
-
-    // פותחת את המגירה בחזרה מ"פס בולט" למצב פתוח מלא
-    function showCommentaryDrawerBack() {
-      commentaryDrawerClosed = false;
-      sessionStorage.setItem('commentaryDrawerClosed', '0');
-      document.getElementById('commentaryDrawer').classList.remove('peek');
-      document.getElementById('commentaryDrawer').classList.add('open');
-      // בעודה סגורה לא נשלחה בקשת פירוש לפסוק הנוכחי (ראו updateCommentaryDrawerForVerse) - להשלים אותה עכשיו
-      if (commentaryDrawerVerse) loadCommentaryForDrawer(commentaryDrawerVerse, commentaryDrawerCommentator);
+    // עוברת בין שלושת מצבי המגירה - מפעילה את הקלאס המתאים, סוגרת את רשימת הפרשנים כשעוברים ל-peek
+    // (כמו hideCommentaryDrawer הישנה), ומשלימה בקשת פירוש לפסוק הנוכחי כשחוזרים מ-peek למצב פתוח
+    // (כמו showCommentaryDrawerBack הישנה - היא לא נשלחה בעודה סגורה, ראו updateCommentaryDrawerForVerse).
+    function setCommentaryDrawerState(newState) {
+      if (newState === commentaryDrawerState) return;
+      const wasPeek = commentaryDrawerState === 'peek';
+      if (newState === 'peek') closeCommentaryList();
+      commentaryDrawerState = newState;
+      sessionStorage.setItem('commentaryDrawerState', newState);
+      applyCommentaryDrawerState(true);
+      if (wasPeek && commentaryDrawerVerse) loadCommentaryForDrawer(commentaryDrawerVerse, commentaryDrawerCommentator);
     }
 
     // גרירת פס האחיזה: המגירה עוקבת אחרי האצבע/עכבר בזמן אמת (transform ישיר, בלי transition) בין
-    // "פתוחה" ל"פס בולט" (peek), ובשחרור "קופצת" לאחד משני המצבים בלבד לפי המיקום האחרון - אין מצב
-    // ביניים קבוע. לחיצה קצרה בלי גרירה משמעותית פשוט הופכת את המצב הנוכחי (כמו הכפתור/החץ הישנים).
+    // "פתוחה" ל"פס בולט" (peek), ובשחרור "קופצת" לאחד משלושת המצבים (open/small/peek) לפי המיקום
+    // האחרון - אין מצב ביניים קבוע נוסף. לחיצה קצרה בלי גרירה משמעותית מתעלמת מ-small ופשוט הופכת
+    // בין open/peek (כמו הכפתור/החץ הישנים) - small נגיש רק בגרירה ממשית.
     // נקרא בזמן אמת מהמשתנה --drawer-peek-px שמוגדר על #commentaryDrawer עצמו (ראו שם) - לא קבוע
     // כפול ב-JS, כדי שכיוונון ידני של הגובה ב-CSS לא ידרוש עדכון מקביל כאן (זו הייתה בדיוק הסיבה
     // לקפיצה קטנה בתחילת גרירה כששני המספרים התפצלו).
@@ -2078,9 +2074,14 @@
       const px = parseFloat(raw);
       return Number.isFinite(px) ? px : 40;
     }
-    // סף רגיש: כמה מהמרחק (0-1) מספיק למשוך כדי שהמגירה תיסגר/תיפתח, בכל כיוון בנפרד
+    // סף רגיש: כמה מהמרחק (0-1) מספיק למשוך כדי שהמגירה תיסגר/תיפתח לגמרי (peek), בכל כיוון בנפרד -
+    // בלי שינוי מהערכים המקוריים, כך שמשיכה מכוונת/עמוקה עדיין נופלת ישר על peek, בלי לעצור ב-small.
     const DRAWER_CLOSE_DRAG_RATIO = 0.2;
     const DRAWER_OPEN_DRAG_RATIO = 0.2;
+    // עצירת "small" (30px קבועים, ראו transform ב-CSS) - סף הכניסה שלה נמוך בהרבה מהסף המכריע
+    // למעלה, כך שרק משיכה חלקית (שלא הגיעה לסף המכריע) "נתפסת" בה בדרך, במקום לחזור ל-open.
+    const DRAWER_SMALL_OFFSET_PX = 30;
+    const DRAWER_SMALL_ENTER_PX = DRAWER_SMALL_OFFSET_PX / 2;
     let commentaryDrawerDragging = false;
     let commentaryDrawerDragStartY = 0;
     let commentaryDrawerDragStartOffset = 0;
@@ -2130,24 +2131,26 @@
       drawer.style.transition = '';
       drawer.style.transform = '';
       const maxOffset = commentaryDrawerDragMaxOffset;
-      // בלי גרירה משמעותית - לחיצה פשוטה הופכת את המצב (רק אם commentaryDrawerDragAllowTapToggle,
-      // כלומר פס האחיזה); עם גרירה - סף נמוך ורגיש, שונה לכל כיוון (התחלה מפתוח דורשת רק
-      // DRAWER_CLOSE_DRAG_RATIO כדי לסגור; התחלה מסגור דורשת רק DRAWER_OPEN_DRAG_RATIO כדי לפתוח)
-      let shouldClose;
+      // בלי גרירה משמעותית - לחיצה פשוטה הופכת בין open/peek בלבד (רק אם commentaryDrawerDragAllowTapToggle,
+      // כלומר פס האחיזה) - small מתעלמת מלחיצה, נגישה רק בגרירה. עם גרירה - סף מכריע נמוך ורגיש כקודם,
+      // שונה לכל כיוון (התחלה מפתוח/small דורשת רק DRAWER_CLOSE_DRAG_RATIO כדי לסגור; התחלה מ-peek
+      // דורשת רק DRAWER_OPEN_DRAG_RATIO כדי להיחשב "לא סגור") - ומי שלא עבר את הסף המכריע אבל עבר את
+      // סף הכניסה הקטן של small (DRAWER_SMALL_ENTER_PX) נופל עליה, במקום לחזור ל-open.
+      let targetState;
       if (!commentaryDrawerDragMoved) {
         if (!commentaryDrawerDragAllowTapToggle) return; // לחיצה רגילה באזור הפסוקים/המגירה - לא נוגעים במגירה
-        shouldClose = !commentaryDrawerClosed;
-      } else if (commentaryDrawerDragStartedClosed) {
-        shouldClose = commentaryDrawerDragOffset > maxOffset * (1 - DRAWER_OPEN_DRAG_RATIO);
+        targetState = commentaryDrawerState === 'peek' ? 'open' : 'peek';
       } else {
-        shouldClose = commentaryDrawerDragOffset > maxOffset * DRAWER_CLOSE_DRAG_RATIO;
+        const shouldClose = commentaryDrawerDragStartedClosed
+          ? commentaryDrawerDragOffset > maxOffset * (1 - DRAWER_OPEN_DRAG_RATIO)
+          : commentaryDrawerDragOffset > maxOffset * DRAWER_CLOSE_DRAG_RATIO;
+        targetState = shouldClose ? 'peek' : (commentaryDrawerDragOffset > DRAWER_SMALL_ENTER_PX ? 'small' : 'open');
       }
       if (commentaryDrawerDragMoved && !commentaryDrawerDragAllowTapToggle) {
         commentaryDrawerJustDragged = true;
         setTimeout(() => { commentaryDrawerJustDragged = false; }, 350);
       }
-      if (shouldClose && !commentaryDrawerClosed) hideCommentaryDrawer();
-      else if (!shouldClose && commentaryDrawerClosed) showCommentaryDrawerBack();
+      setCommentaryDrawerState(targetState);
     }
     // נקרא מפס האחיזה (עם toggle-בלחיצה), מאזור הפסוקים, וגם מכל שאר שטח המגירה עצמה כשהיא פתוחה
     // (הכותרת/בורר הפרשן/כפתור הניגון) - בלי toggle-בלחיצה בשני האחרונים, כדי לא לפגוע בלחיצה רגילה
@@ -2171,10 +2174,11 @@
       commentaryDrawerDragging = true;
       commentaryDrawerDragMoved = false;
       commentaryDrawerDragAllowTapToggle = allowTapToggle;
-      commentaryDrawerDragStartedClosed = commentaryDrawerClosed;
+      commentaryDrawerDragStartedClosed = commentaryDrawerState === 'peek';
       commentaryDrawerDragStartY = e.clientY;
       commentaryDrawerDragMaxOffset = drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer);
-      commentaryDrawerDragStartOffset = commentaryDrawerClosed ? commentaryDrawerDragMaxOffset : 0;
+      commentaryDrawerDragStartOffset = commentaryDrawerState === 'peek' ? commentaryDrawerDragMaxOffset
+        : commentaryDrawerState === 'small' ? DRAWER_SMALL_OFFSET_PX : 0;
       commentaryDrawerDragOffset = commentaryDrawerDragStartOffset;
       document.addEventListener('pointermove', commentaryDrawerDragMoveHandler);
       document.addEventListener('pointerup', commentaryDrawerDragEndHandler);
@@ -2252,22 +2256,6 @@
       const audio = document.getElementById('srtPlayer');
       if (audio.paused) audio.play().catch(() => {}); else audio.pause();
     });
-    document.getElementById('uvBigPlayBtn').addEventListener('click', () => {
-      // כנ"ל - גרירה משמעותית של המגירה מאזור הפסוקים (ראו commentaryDrawerJustDragged למעלה) לא אמורה גם לטגל ניגון
-      if (commentaryDrawerJustDragged) { commentaryDrawerJustDragged = false; return; }
-      const audio = document.getElementById('srtPlayer');
-      // שני הכפתורים האלה מוחרגים מה"העירו" הגלובלי (ראו שם) - play() כאן הוא כבר play() אמיתי בתוך
-      // מחוות משתמש, אז מותר להחיל מיד אחריו מיקום שמור ממתין (pendingRestoreTime), אם יש.
-      if (audio.paused) { audio.play().catch(() => {}); uvApplyPendingRestore(); } else audio.pause();
-    });
-    // מאז שכל שטח המגירה נהיה משטח גרירה (ראו setupDrawerDragSurface(commentaryDrawer,...) למעלה) -
-    // גרירה משמעותית שהתחילה על הכפתור הזה בדיוק צריכה להתעלם מה-click שבא אחריה, כמו uvBigPlayBtn.
-    document.getElementById('commentaryDrawerPlayBtn').addEventListener('click', () => {
-      if (commentaryDrawerJustDragged) { commentaryDrawerJustDragged = false; return; }
-      const audio = document.getElementById('srtPlayer');
-      if (audio.paused) { audio.play().catch(() => {}); uvApplyPendingRestore(); } else audio.pause();
-    });
-    uvUpdateDrawerPlayBtn();
 
     document.getElementById('uvTrack').addEventListener('click', (e) => {
       // ה-click הראשון אחרי שחרור גרירת המד מדולג תמיד - גם אם היעד בפועל (mouseup) נפל מחוץ למד,
@@ -2282,9 +2270,21 @@
       const idx = parseInt(row.dataset.idx, 10);
       if (Number.isNaN(idx)) return;
       const audio = document.getElementById('srtPlayer');
-      if (idx === uvCurrentIdx) {
+      // idx<0 הוא שורת ה-play הוירטואלית (לפני הפסוק הראשון) - היא לא "פסוק" לנווט אליו, רק כפתור
+      // play/pause. לחיצה עליה תמיד עושה toggle בלבד, גם כשהיא מוצגת עמומה כ"קודמת" (אחרי שהפסוק
+      // הראשון האמיתי הפך לנוכחי) - אחרת לחיצה עליה הייתה מדלגת אחורה לזמן 0 במקום רק להשהות/להמשיך
+      // את הניגון הנוכחי, מה שמפתיע ולא רצוי (בניגוד ללחיצה על פסוק קודם אמיתי, שבו "לחזור אליו" הוא
+      // בדיוק הכוונה).
+      if (idx < 0 || idx === uvCurrentIdx) {
         // לחיצה על הפסוק הנוכחי (לא פסוק אחר) - רק toggle לניגון, בלי seek
-        if (audio.paused) { audio.play().catch(() => {}); uvFlashPlayIcon(row, '▶'); }
+        if (audio.paused) {
+          audio.play().catch(() => {});
+          // בדיוק כמו הכפתורים הישנים שהשורה הזו מחליפה - play() כאן הוא כבר play() אמיתי בתוך
+          // מחוות משתמש, אז מותר להחיל מיד אחריו מיקום שמור ממתין (pendingRestoreTime), אם יש
+          // (ראו הערה עליו למעלה).
+          if (idx < 0) uvApplyPendingRestore();
+          uvFlashPlayIcon(row, '▶');
+        }
         else { audio.pause(); uvFlashPlayIcon(row, '⏸'); }
       } else {
         // לחיצה על פסוק אחר - מנווטת אליו; ממשיכה לנגן רק אם כבר ניגנו קודם, נשארת בהשהיה אם היינו ב-pause
