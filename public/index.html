@@ -2031,7 +2031,12 @@
         // מקומי, לא מספריא - לפי זמן ניגון נוכחי מתוך summarySegments (ראו summary.srt), לא לפי פסוק
         const audio = document.getElementById('srtPlayer');
         const t = pendingRestoreTime != null ? pendingRestoreTime : audio.currentTime;
-        const seg = summarySegments.find(s => t >= s.start && t < s.end);
+        let seg = summarySegments.find(s => t >= s.start && t < s.end);
+        // אחרי סוף הפסוק/בלוק האחרון - הניגון עדיין רץ (סוף השיעור) אבל t כבר עבר את s.end
+        // של הבלוק האחרון; במקום "אין פירוש", ממשיכים להציג את הבלוק האחרון (כמו במהלכו)
+        if (!seg && summarySegments.length && t >= summarySegments[summarySegments.length - 1].start) {
+          seg = summarySegments[summarySegments.length - 1];
+        }
         bodyEl.textContent = seg ? seg.text : 'אין פירוש זמין לפסוק זה מהפרשן הזה';
         return;
       }
@@ -2156,7 +2161,11 @@
       } else {
         shouldClose = commentaryDrawerDragOffset > maxOffset * DRAWER_CLOSE_DRAG_RATIO;
       }
-      if (commentaryDrawerDragMoved && !commentaryDrawerDragAllowTapToggle) {
+      // הדגל נדלק לכל גרירה עם תזוזה משמעותית, כולל מהידית עצמה (allowTapToggle=true) - בלי זה,
+      // גרירה מהידית שחוצה את הגבול (למשל נמשכת למעלה אחרי שהמגירה כבר פתוחה לגמרי) משאירה את
+      // האצבע בשחרור מעל פסוק ב-#userView שמתחת למגירה, וה-click הסינתטי שם (hit-test במיקום
+      // ה-pointerup בפועל, לא בהתחלה) היה מנווט אליו בטעות בלי הגנה זו.
+      if (commentaryDrawerDragMoved) {
         commentaryDrawerJustDragged = true;
         setTimeout(() => { commentaryDrawerJustDragged = false; }, 350);
       }
