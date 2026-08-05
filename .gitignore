@@ -3,3 +3,5 @@ node_modules/
 uploads/
 runpod-response.json
 data/sefaria-cache.json
+*.log
+Static Saved Locally/
