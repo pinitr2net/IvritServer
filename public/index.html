@@ -354,13 +354,9 @@
       /* מקור אמת יחיד לגובה ה"פס הבולט" (peek) - גם ל-.peek למטה וגם ל-DRAWER_PEEK_PX ב-JS
          (נקרא עם getComputedStyle, ראו getDrawerPeekPx). מכוונן ידנית כאן בלבד - אין צורך לעדכן
          עוד ערך במקביל, זה בדיוק מה שגרם בעבר לקפיצה קטנה בתחילת גרירה כששני המספרים לא היו זהים. */
-      --drawer-peek-px: 60px;
+      --drawer-peek-px: 137px;
     }
     #commentaryDrawer.open { transform: translateY(0); }
-    /* עצירת גודל שלישית - קטנה ב-30px קבועים מהמצב הפתוח. נגישה רק בגרירה (ראו commentaryDrawerDragEndHandler
-       ב-JS) - אין כפתור נפרד. translateY, לא height, כדי להתאים בדיוק לאותו מנגנון גרירה (transform ישיר)
-       שכבר קיים ל-peek למטה - הגרירה בזמן אמת "עוברת" בעדה בדרך בלי שינוי מיוחד. */
-    #commentaryDrawer.small { transform: translateY(30px); }
     /* "סגורה" בתוך תצוגת המשתמש - לא נעלמת לגמרי כמו כשיוצאים מתצוגת המשתמש (translateY(100%)
        הבסיסי), אלא משאירה פס אחיזה בולט מציץ מעל תחתית המסך, לגרירה/לחיצה כדי לפתוח מחדש. */
     #commentaryDrawer.peek { transform: translateY(calc(100% - var(--drawer-peek-px))); }
@@ -1453,7 +1449,8 @@
       document.querySelector('.card').style.display = userViewActive ? 'none' : '';
       document.getElementById('userView').style.display = userViewActive ? 'flex' : 'none';
       document.getElementById('stickyPlayer').style.display = userViewActive ? 'none' : 'block';
-      applyCommentaryDrawerState(userViewActive);
+      document.getElementById('commentaryDrawer').classList.toggle('open', userViewActive && !commentaryDrawerClosed);
+      document.getElementById('commentaryDrawer').classList.toggle('peek', userViewActive && commentaryDrawerClosed);
       const fab = document.getElementById('viewToggleFab');
       fab.textContent = userViewActive ? '🛠️' : '📖';
       fab.title = userViewActive ? 'חזרה לתצוגת ניפוי' : 'תצוגת משתמש';
@@ -1541,10 +1538,13 @@
         uvCurrentChapterNum = null;
         uvUpdateStickyChapter(uvCurrentIdx);
       }
-      // מגירת הפירוש מאותחלת כאן לפסוק הראשון, במצב שנשמר מה-session הקודם
+      // מגירת הפירוש מאותחלת כאן לפסוק הראשון, במצב פתוח/סגור שנשמר מה-session הקודם
       if (uvVerses.length) {
         updateCommentaryDrawerForVerse(uvVerses[0]);
-        applyCommentaryDrawerState(true);
+        if (commentaryDrawerClosed) {
+          document.getElementById('commentaryDrawer').classList.remove('open');
+          document.getElementById('commentaryDrawer').classList.add('peek');
+        }
       }
     }
 
@@ -2023,49 +2023,42 @@
       document.getElementById('commentaryDrawerCommentatorList').classList.remove('open');
     }
 
-    // מצב/גודל המגירה - שלוש עצירות: 'open' (מלא), 'small' (קטן ב-30px קבועים - נגיש רק בגרירה,
-    // אין כפתור נפרד, ראו commentaryDrawerDragEndHandler למטה), 'peek' (פס בולט בלבד, ראו CSS).
-    // נשמר ב-sessionStorage (לא localStorage), ושורד ריפרש של הטאב, כמו commentaryDrawerCommentator הקיים.
-    const DRAWER_STATES = ['open', 'small', 'peek'];
-    function normalizeDrawerState(v) { return DRAWER_STATES.includes(v) ? v : 'open'; }
-    let commentaryDrawerState = normalizeDrawerState(sessionStorage.getItem('commentaryDrawerState'));
-
-    // מחילה את קלאס המצב המתאים על #commentaryDrawer עצמו. active=false (תצוגת המשתמש לא פעילה)
-    // לא מחיל אף קלאס - בדיוק כמו userViewActive && ... הישן.
-    function applyCommentaryDrawerState(active) {
-      const el = document.getElementById('commentaryDrawer');
-      el.classList.toggle('open', active && commentaryDrawerState === 'open');
-      el.classList.toggle('small', active && commentaryDrawerState === 'small');
-      el.classList.toggle('peek', active && commentaryDrawerState === 'peek');
-    }
+    // מצב פתוח/סגור נשמר ב-sessionStorage (לא localStorage), ושורד ריפרש של הטאב,
+    // כמו commentaryDrawerCommentator הקיים.
+    let commentaryDrawerClosed = sessionStorage.getItem('commentaryDrawerClosed') === '1';
 
     // מעדכן את התוכן בלבד - לכל מעבר פסוק (לחיצה, גלילה/מקלדת, או התקדמות טבעית של הניגון) -
     // המגירה מוצגת תמיד כל עוד תצוגת המשתמש פעילה, אין יותר מצב "סגור" נפרד מ"גודל קטן".
-    // בקשת הפירוש מספריא נשלחת רק כשהמגירה פתוחה בפועל ('open'/'small', לא 'peek') - אין טעם למשוך
-    // פירוש שהמשתמש לא רואה; setCommentaryDrawerState משלימה את הבקשה לפסוק הנוכחי כשחוזרים מ-peek.
+    // בקשת הפירוש מספריא נשלחת רק כשהמגירה פתוחה בפועל (לא ב-peek) - אין טעם למשוך פירוש
+    // שהמשתמש לא רואה; showCommentaryDrawerBack משלימה את הבקשה לפסוק הנוכחי כשהמגירה נפתחת.
     function updateCommentaryDrawerForVerse(v) {
       commentaryDrawerVerse = v;
       renderCommentaryDrawer(); // אם כבר יש קאש לפרק/פרשן הזה - מוצג מיד, בלי "טוען..."
-      if (commentaryDrawerState !== 'peek') loadCommentaryForDrawer(v, commentaryDrawerCommentator);
+      if (!commentaryDrawerClosed) loadCommentaryForDrawer(v, commentaryDrawerCommentator);
     }
 
-    // עוברת בין שלושת מצבי המגירה - מפעילה את הקלאס המתאים, סוגרת את רשימת הפרשנים כשעוברים ל-peek
-    // (כמו hideCommentaryDrawer הישנה), ומשלימה בקשת פירוש לפסוק הנוכחי כשחוזרים מ-peek למצב פתוח
-    // (כמו showCommentaryDrawerBack הישנה - היא לא נשלחה בעודה סגורה, ראו updateCommentaryDrawerForVerse).
-    function setCommentaryDrawerState(newState) {
-      if (newState === commentaryDrawerState) return;
-      const wasPeek = commentaryDrawerState === 'peek';
-      if (newState === 'peek') closeCommentaryList();
-      commentaryDrawerState = newState;
-      sessionStorage.setItem('commentaryDrawerState', newState);
-      applyCommentaryDrawerState(true);
-      if (wasPeek && commentaryDrawerVerse) loadCommentaryForDrawer(commentaryDrawerVerse, commentaryDrawerCommentator);
+    // "סוגרת" את המגירה - במקום להיעלם לגמרי, נשארת ב"פס בולט" (peek, ראו CSS) לגרירה/לחיצה כדי לפתוח חזרה
+    function hideCommentaryDrawer() {
+      closeCommentaryList();
+      commentaryDrawerClosed = true;
+      sessionStorage.setItem('commentaryDrawerClosed', '1');
+      document.getElementById('commentaryDrawer').classList.remove('open');
+      document.getElementById('commentaryDrawer').classList.add('peek');
+    }
+
+    // פותחת את המגירה בחזרה מ"פס בולט" למצב פתוח מלא
+    function showCommentaryDrawerBack() {
+      commentaryDrawerClosed = false;
+      sessionStorage.setItem('commentaryDrawerClosed', '0');
+      document.getElementById('commentaryDrawer').classList.remove('peek');
+      document.getElementById('commentaryDrawer').classList.add('open');
+      // בעודה סגורה לא נשלחה בקשת פירוש לפסוק הנוכחי (ראו updateCommentaryDrawerForVerse) - להשלים אותה עכשיו
+      if (commentaryDrawerVerse) loadCommentaryForDrawer(commentaryDrawerVerse, commentaryDrawerCommentator);
     }
 
     // גרירת פס האחיזה: המגירה עוקבת אחרי האצבע/עכבר בזמן אמת (transform ישיר, בלי transition) בין
-    // "פתוחה" ל"פס בולט" (peek), ובשחרור "קופצת" לאחד משלושת המצבים (open/small/peek) לפי המיקום
-    // האחרון - אין מצב ביניים קבוע נוסף. לחיצה קצרה בלי גרירה משמעותית מתעלמת מ-small ופשוט הופכת
-    // בין open/peek (כמו הכפתור/החץ הישנים) - small נגיש רק בגרירה ממשית.
+    // "פתוחה" ל"פס בולט" (peek), ובשחרור "קופצת" לאחד משני המצבים בלבד לפי המיקום האחרון - אין מצב
+    // ביניים קבוע. לחיצה קצרה בלי גרירה משמעותית פשוט הופכת את המצב הנוכחי (כמו הכפתור/החץ הישנים).
     // נקרא בזמן אמת מהמשתנה --drawer-peek-px שמוגדר על #commentaryDrawer עצמו (ראו שם) - לא קבוע
     // כפול ב-JS, כדי שכיוונון ידני של הגובה ב-CSS לא ידרוש עדכון מקביל כאן (זו הייתה בדיוק הסיבה
     // לקפיצה קטנה בתחילת גרירה כששני המספרים התפצלו).
@@ -2074,14 +2067,9 @@
       const px = parseFloat(raw);
       return Number.isFinite(px) ? px : 40;
     }
-    // סף רגיש: כמה מהמרחק (0-1) מספיק למשוך כדי שהמגירה תיסגר/תיפתח לגמרי (peek), בכל כיוון בנפרד -
-    // בלי שינוי מהערכים המקוריים, כך שמשיכה מכוונת/עמוקה עדיין נופלת ישר על peek, בלי לעצור ב-small.
+    // סף רגיש: כמה מהמרחק (0-1) מספיק למשוך כדי שהמגירה תיסגר/תיפתח, בכל כיוון בנפרד
     const DRAWER_CLOSE_DRAG_RATIO = 0.2;
     const DRAWER_OPEN_DRAG_RATIO = 0.2;
-    // עצירת "small" (30px קבועים, ראו transform ב-CSS) - סף הכניסה שלה נמוך בהרבה מהסף המכריע
-    // למעלה, כך שרק משיכה חלקית (שלא הגיעה לסף המכריע) "נתפסת" בה בדרך, במקום לחזור ל-open.
-    const DRAWER_SMALL_OFFSET_PX = 30;
-    const DRAWER_SMALL_ENTER_PX = DRAWER_SMALL_OFFSET_PX / 2;
     let commentaryDrawerDragging = false;
     let commentaryDrawerDragStartY = 0;
     let commentaryDrawerDragStartOffset = 0;
@@ -2131,26 +2119,24 @@
       drawer.style.transition = '';
       drawer.style.transform = '';
       const maxOffset = commentaryDrawerDragMaxOffset;
-      // בלי גרירה משמעותית - לחיצה פשוטה הופכת בין open/peek בלבד (רק אם commentaryDrawerDragAllowTapToggle,
-      // כלומר פס האחיזה) - small מתעלמת מלחיצה, נגישה רק בגרירה. עם גרירה - סף מכריע נמוך ורגיש כקודם,
-      // שונה לכל כיוון (התחלה מפתוח/small דורשת רק DRAWER_CLOSE_DRAG_RATIO כדי לסגור; התחלה מ-peek
-      // דורשת רק DRAWER_OPEN_DRAG_RATIO כדי להיחשב "לא סגור") - ומי שלא עבר את הסף המכריע אבל עבר את
-      // סף הכניסה הקטן של small (DRAWER_SMALL_ENTER_PX) נופל עליה, במקום לחזור ל-open.
-      let targetState;
+      // בלי גרירה משמעותית - לחיצה פשוטה הופכת את המצב (רק אם commentaryDrawerDragAllowTapToggle,
+      // כלומר פס האחיזה); עם גרירה - סף נמוך ורגיש, שונה לכל כיוון (התחלה מפתוח דורשת רק
+      // DRAWER_CLOSE_DRAG_RATIO כדי לסגור; התחלה מסגור דורשת רק DRAWER_OPEN_DRAG_RATIO כדי לפתוח)
+      let shouldClose;
       if (!commentaryDrawerDragMoved) {
         if (!commentaryDrawerDragAllowTapToggle) return; // לחיצה רגילה באזור הפסוקים/המגירה - לא נוגעים במגירה
-        targetState = commentaryDrawerState === 'peek' ? 'open' : 'peek';
+        shouldClose = !commentaryDrawerClosed;
+      } else if (commentaryDrawerDragStartedClosed) {
+        shouldClose = commentaryDrawerDragOffset > maxOffset * (1 - DRAWER_OPEN_DRAG_RATIO);
       } else {
-        const shouldClose = commentaryDrawerDragStartedClosed
-          ? commentaryDrawerDragOffset > maxOffset * (1 - DRAWER_OPEN_DRAG_RATIO)
-          : commentaryDrawerDragOffset > maxOffset * DRAWER_CLOSE_DRAG_RATIO;
-        targetState = shouldClose ? 'peek' : (commentaryDrawerDragOffset > DRAWER_SMALL_ENTER_PX ? 'small' : 'open');
+        shouldClose = commentaryDrawerDragOffset > maxOffset * DRAWER_CLOSE_DRAG_RATIO;
       }
       if (commentaryDrawerDragMoved && !commentaryDrawerDragAllowTapToggle) {
         commentaryDrawerJustDragged = true;
         setTimeout(() => { commentaryDrawerJustDragged = false; }, 350);
       }
-      setCommentaryDrawerState(targetState);
+      if (shouldClose && !commentaryDrawerClosed) hideCommentaryDrawer();
+      else if (!shouldClose && commentaryDrawerClosed) showCommentaryDrawerBack();
     }
     // נקרא מפס האחיזה (עם toggle-בלחיצה), מאזור הפסוקים, וגם מכל שאר שטח המגירה עצמה כשהיא פתוחה
     // (הכותרת/בורר הפרשן/כפתור הניגון) - בלי toggle-בלחיצה בשני האחרונים, כדי לא לפגוע בלחיצה רגילה
@@ -2174,11 +2160,10 @@
       commentaryDrawerDragging = true;
       commentaryDrawerDragMoved = false;
       commentaryDrawerDragAllowTapToggle = allowTapToggle;
-      commentaryDrawerDragStartedClosed = commentaryDrawerState === 'peek';
+      commentaryDrawerDragStartedClosed = commentaryDrawerClosed;
       commentaryDrawerDragStartY = e.clientY;
       commentaryDrawerDragMaxOffset = drawer.getBoundingClientRect().height - getDrawerPeekPx(drawer);
-      commentaryDrawerDragStartOffset = commentaryDrawerState === 'peek' ? commentaryDrawerDragMaxOffset
-        : commentaryDrawerState === 'small' ? DRAWER_SMALL_OFFSET_PX : 0;
+      commentaryDrawerDragStartOffset = commentaryDrawerClosed ? commentaryDrawerDragMaxOffset : 0;
       commentaryDrawerDragOffset = commentaryDrawerDragStartOffset;
       document.addEventListener('pointermove', commentaryDrawerDragMoveHandler);
       document.addEventListener('pointerup', commentaryDrawerDragEndHandler);
