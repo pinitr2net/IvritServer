@@ -255,27 +255,6 @@
     }
     #lectureLoader span { color: #555; font-size: 1rem; }
     @keyframes lectureSpin { to { transform: rotate(360deg); } }
-    #captionToggleBtn {
-      position: fixed;
-      top: 68px;
-      right: 68px;
-      z-index: 200;
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      border: none;
-      background: #0891b2;
-      color: #fff;
-      font-size: 1.2rem;
-      line-height: 1;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 0;
-    }
-    #captionToggleBtn.uv-off { background: #94a3b8; }
     #commitInfoBtn {
       position: fixed;
       top: 68px;
@@ -691,19 +670,12 @@
       background: #f5a623;
       box-shadow: 0 0 0 2px #fff;
     }
-    #userViewCaption {
-      flex-shrink: 0; height: 5.5rem; overflow-y: auto;
-      background: #111827; color: #fff; font-size: 1.3rem; line-height: 1.5;
-      text-align: center; padding: 0.5rem 1.5rem; box-sizing: border-box;
-      display: flex; align-items: center; justify-content: center;
-    }
   </style>
 </head>
 <body>
   <div id="lectureLoader"><div class="spinner"></div><span>טוען את השיעור...</span></div>
   <div id="stickyPlayer"><audio id="srtPlayer" controls style="width:100%;"></audio></div>
   <button id="viewToggleFab" disabled onclick="toggleUserView()" title="החלף תצוגה">📖</button>
-  <button id="captionToggleBtn" class="uv-off" onclick="toggleCaptions()" title="הצג כתוביות">💬</button>
   <button id="commitInfoBtn" onclick="showCommitInfo()" title="מידע קומיט">🔖</button>
   <div id="commitInfoOverlay" onclick="if (event.target === this) hideCommitInfo()">
     <div id="commitInfoPopup">
@@ -794,7 +766,6 @@
         </div>
       </div>
     </div>
-    <div id="userViewCaption" style="display:none;"></div>
   </div>
 
   <div id="commentaryDrawer">
@@ -816,7 +787,6 @@
     let selectedAudioFile = null;
     let srtSegments = [];
     let userViewActive = false;
-    let lastCaptionSegId = null;
     // הסבר הרב בשיעור (summary.srt) - ממופה לפי זמן ניגון גולמי, לא לפי פסוק (ראו commentaryDrawerCommentator)
     let summarySegments = [];
     let lastSummarySegId = null;
@@ -857,7 +827,6 @@
     let uvMeterRowIdx = null;
     let uvChapterBadgeIdx = null;
     let uvCurrentChapterNum = null;
-    let captionsVisible = false;
     let prevVersesCount = parseInt(localStorage.getItem('uvPrevVersesCount') || '1', 10);
     document.getElementById('prevVersesSelect').value = String(prevVersesCount);
     let showMeter = localStorage.getItem('uvShowMeter') !== 'false';
@@ -1086,10 +1055,7 @@
       fab.style.display = '';
       fab.textContent = '📖';
       fab.title = 'תצוגת משתמש';
-      document.getElementById('userViewCaption').textContent = '';
       document.getElementById('userViewTitle').textContent = '';
-      document.getElementById('userViewCaption').style.display = 'none';
-      lastCaptionSegId = null;
       uvVerses = [];
       uvCurrentIdx = null;
       uvPauseHandledIdx = null;
@@ -1101,11 +1067,6 @@
       uvChapterBadgeIdx = null;
       uvCurrentChapterNum = null;
       document.getElementById('uvTrack').innerHTML = '';
-      captionsVisible = false;
-      const captionBtn = document.getElementById('captionToggleBtn');
-      captionBtn.style.display = 'none';
-      captionBtn.classList.add('uv-off');
-      captionBtn.title = 'הצג כתוביות';
     }
 
     function applyAudioFile(file) {
@@ -1467,7 +1428,6 @@
       const fab = document.getElementById('viewToggleFab');
       fab.textContent = userViewActive ? '🛠️' : '📖';
       fab.title = userViewActive ? 'חזרה לתצוגת ניפוי' : 'תצוגת משתמש';
-      document.getElementById('captionToggleBtn').style.display = userViewActive ? 'none' : 'flex';
       if (isDebugRoute) document.getElementById('commitInfoBtn').style.display = userViewActive ? 'flex' : 'none';
       if (userViewActive) {
         if (!noRafLoops) renderUserView();
@@ -1482,14 +1442,6 @@
         stopUvPauseWatchLoop();
         stopUvScrollLoop();
       }
-    }
-
-    function toggleCaptions() {
-      captionsVisible = !captionsVisible;
-      document.getElementById('userViewCaption').style.display = captionsVisible ? 'flex' : 'none';
-      const btn = document.getElementById('captionToggleBtn');
-      btn.classList.toggle('uv-off', !captionsVisible);
-      btn.title = captionsVisible ? 'הסתר כתוביות' : 'הצג כתוביות';
     }
 
     let commitInfoCache = null;
@@ -2378,14 +2330,6 @@
       // הכתובית הנכונים, בלי לגעת ב-audio.currentTime האמיתי (עדיין 0) לפני שיש play() אמיתי.
       const t = pendingRestoreTime != null ? pendingRestoreTime : audio.currentTime;
       if (isFinite(audio.duration) && audio.duration > 0 && !uvSeekBarDragging) uvSeekBarRender(t / audio.duration);
-
-      const captionEl = document.getElementById('userViewCaption');
-      const seg = srtSegments.find(s => t >= s.start && t < s.end);
-      if (seg) {
-        if (seg.id !== lastCaptionSegId) { captionEl.textContent = seg.text; lastCaptionSegId = seg.id; }
-      } else if (lastCaptionSegId !== null) {
-        captionEl.textContent = ''; lastCaptionSegId = null;
-      }
 
       // הסבר הרב (summary.srt) ממופה לפי זמן ניגון, לא לפי פסוק - הגבולות לא מתלכדים עם uvVerses,
       // אז חייבים בדיקה עצמאית כאן בכל tick (לא רק במעבר idx למטה)
